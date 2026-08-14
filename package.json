@@ -1,0 +1,44 @@
+{
+  "name": "hop-rs-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "npm-run-all -p typecheck build-only",
+    "build-only": "vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --build",
+    "lint": "eslint . --max-warnings=0",
+    "test": "vitest",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@lucide/vue": "1.31.0",
+    "@tanstack/vue-query": "5.101.4",
+    "vue": "3.5.41",
+    "vue-router": "5.2.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.62.1",
+    "@types/node": "26.2.0",
+    "@vitejs/plugin-vue": "6.0.8",
+    "@vue/test-utils": "2.4.11",
+    "@vue/tsconfig": "0.9.1",
+    "eslint": "10.8.1",
+    "eslint-plugin-vue": "10.10.0",
+    "jsdom": "30.0.1",
+    "npm-run-all2": "9.0.3",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.67.0",
+    "vite": "8.2.1",
+    "vitest": "4.1.10",
+    "vue-tsc": "3.3.9"
+  }
+}

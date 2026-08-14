@@ -1,0 +1,6 @@
+{
+  "approved": true,
+  "role": "global-shell",
+  "promptFile": "overview-operations-rail.prompt.txt",
+  "decision": "Approved by the user as direction A for the shared application shell and overview composition."
+}

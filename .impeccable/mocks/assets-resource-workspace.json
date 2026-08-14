@@ -1,0 +1,6 @@
+{
+  "approved": true,
+  "role": "assets-page",
+  "promptFile": "assets-resource-workspace.prompt.txt",
+  "decision": "Approved by the user as direction B for the Assets master-detail workspace."
+}

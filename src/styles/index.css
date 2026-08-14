@@ -1,0 +1,221 @@
+:root {
+  --font-ui: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --surface-canvas: #0d141d;
+  --surface-rail: #111b27;
+  --surface-panel: #172231;
+  --surface-raised: #1c2939;
+  --surface-input: #121c28;
+  --surface-hover: #213044;
+  --surface-selected: #26384b;
+  --line: #2a394b;
+  --line-strong: #3b4d61;
+  --text-strong: #edf3f7;
+  --text: #c2ccd6;
+  --text-muted: #8795a5;
+  --accent: #53c7a2;
+  --accent-strong: #76d7b7;
+  --accent-soft: #183c37;
+  --warning: #f2b84b;
+  --warning-soft: #3c3120;
+  --danger: #f26464;
+  --danger-soft: #3d2228;
+  --info: #71b7f4;
+  --info-soft: #1c3247;
+  --focus: #8ccaff;
+  --shadow-layer: 0 18px 40px rgba(1, 7, 15, 0.26);
+  --radius-panel: 12px;
+  --radius-control: 8px;
+  --sidebar-width: 224px;
+  --content-gutter: clamp(16px, 2vw, 28px);
+  color: var(--text);
+  background: var(--surface-canvas);
+  font-family: var(--font-ui);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+:root[data-theme='light'] {
+  --surface-canvas: #edf1f4;
+  --surface-rail: #f7f9fa;
+  --surface-panel: #ffffff;
+  --surface-raised: #f7f9fb;
+  --surface-input: #f2f5f7;
+  --surface-hover: #e7edf1;
+  --surface-selected: #dfe9ed;
+  --line: #d3dce2;
+  --line-strong: #b7c5cf;
+  --text-strong: #15212c;
+  --text: #354656;
+  --text-muted: #687987;
+  --accent: #147d68;
+  --accent-strong: #086a58;
+  --accent-soft: #d9f0e9;
+  --warning: #9b6713;
+  --warning-soft: #faecd3;
+  --danger: #b83b45;
+  --danger-soft: #f8e1e4;
+  --info: #276f9f;
+  --info-soft: #dcecf7;
+  --focus: #136fa7;
+  --shadow-layer: 0 18px 40px rgba(31, 48, 60, 0.13);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  background: var(--surface-canvas);
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--surface-canvas);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+button,
+input,
+textarea,
+select {
+  color: inherit;
+  font: inherit;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  border: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+svg {
+  display: block;
+  flex: 0 0 auto;
+}
+
+::selection {
+  background: var(--accent);
+  color: #07150f;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+* {
+  scrollbar-color: var(--line-strong) transparent;
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: var(--line-strong);
+  background-clip: padding-box;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-panel);
+}
+
+.page-stack {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  animation: page-settle 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.page-intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.page-intro h1,
+.page-intro h2 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: clamp(20px, 2vw, 24px);
+  font-weight: 620;
+  letter-spacing: -0.02em;
+}
+
+.page-intro p {
+  max-width: 68ch;
+  margin: 4px 0 0;
+  color: var(--text-muted);
+}
+
+@keyframes page-settle {
+  from {
+    opacity: 0.72;
+    transform: translateY(5px);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

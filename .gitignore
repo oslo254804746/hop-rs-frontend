@@ -1,0 +1,8 @@
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+*.local
+.impeccable/config.local.json
+.DS_Store
