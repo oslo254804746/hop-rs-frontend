@@ -7,7 +7,7 @@ export type AccessMode = 'all' | 'restricted'
 
 export type ResourceManagement =
   | { mode: 'local' }
-  | { mode: 'declarative'; sourceId: string; sourceKey?: string }
+  | { mode: 'config'; sourceId?: string; sourceKey?: string }
 
 export type AssetHealth =
   | {

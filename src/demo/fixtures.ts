@@ -42,7 +42,7 @@ export function createDemoFixtures(): DemoFixtures {
   return {
     status: {
       status: 'ok',
-      version: '0.2.0-demo',
+      version: '0.2.1-demo',
       catalogRevision: 128,
     },
     assets: [
@@ -57,7 +57,7 @@ export function createDemoFixtures(): DemoFixtures {
         credentialId: 'credential-deploy',
         createdAt: '2026-07-28 14:20:00',
         updatedAt: '2026-08-14 09:41:22',
-        management: { mode: 'declarative', sourceId: 'home', sourceKey: 'asset/prod-gateway' },
+        management: { mode: 'config', sourceId: 'home', sourceKey: 'asset/prod-gateway' },
         health: {
           status: 'healthy',
           checkedAt: '2026-08-14 09:47:52',
@@ -115,7 +115,7 @@ export function createDemoFixtures(): DemoFixtures {
         credentialId: 'credential-deploy',
         createdAt: '2026-08-11 08:03:12',
         updatedAt: '2026-08-14 09:41:22',
-        management: { mode: 'declarative', sourceId: 'home', sourceKey: 'asset/build-runner' },
+        management: { mode: 'config', sourceId: 'home', sourceKey: 'asset/build-runner' },
         health: { status: 'unknown', checkedAt: null },
       },
       {
@@ -129,7 +129,7 @@ export function createDemoFixtures(): DemoFixtures {
         credentialId: 'credential-deploy',
         createdAt: '2026-08-01 10:18:22',
         updatedAt: '2026-08-13 16:30:04',
-        management: { mode: 'declarative', sourceId: 'home', sourceKey: 'asset/bastion-01' },
+        management: { mode: 'config', sourceId: 'home', sourceKey: 'asset/bastion-01' },
         health: {
           status: 'healthy',
           checkedAt: '2026-08-14 09:47:48',
@@ -167,7 +167,7 @@ export function createDemoFixtures(): DemoFixtures {
         credentialId: null,
         createdAt: '2026-08-05 09:14:40',
         updatedAt: '2026-08-05 09:14:40',
-        management: { mode: 'declarative', sourceId: 'home', sourceKey: 'asset/metrics-api' },
+        management: { mode: 'config', sourceId: 'home', sourceKey: 'asset/metrics-api' },
         health: {
           status: 'healthy',
           checkedAt: '2026-08-14 09:47:26',
@@ -219,7 +219,7 @@ export function createDemoFixtures(): DemoFixtures {
         credentialId: null,
         createdAt: '2026-08-10 06:45:32',
         updatedAt: '2026-08-10 06:45:32',
-        management: { mode: 'declarative', sourceId: 'home', sourceKey: 'asset/dns-service' },
+        management: { mode: 'config', sourceId: 'home', sourceKey: 'asset/dns-service' },
         health: {
           status: 'healthy',
           checkedAt: '2026-08-14 09:47:13',
@@ -247,7 +247,7 @@ export function createDemoFixtures(): DemoFixtures {
         password: 'missing',
         privateKey: 'configured',
         passphrase: 'configured',
-        management: { mode: 'declarative', sourceId: 'home', sourceKey: 'credential/deploy-key' },
+        management: { mode: 'config', sourceId: 'home', sourceKey: 'credential/deploy-key' },
       },
     ],
     accessKeys: [
@@ -267,7 +267,7 @@ export function createDemoFixtures(): DemoFixtures {
         enabled: true,
         accessMode: 'restricted',
         assetIds: ['asset-build-runner', 'asset-prod-gateway'],
-        management: { mode: 'declarative', sourceId: 'home', sourceKey: 'access/ci-deploy' },
+        management: { mode: 'config', sourceId: 'home', sourceKey: 'access/ci-deploy' },
       },
       {
         id: 'access-retired-tablet',

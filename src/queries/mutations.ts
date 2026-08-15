@@ -41,7 +41,6 @@ function catalogMutationKeys(scope: string, resourceKey: QueryKey): QueryKey[] {
     hopQueryKeys.status(scope),
     hopQueryKeys.revision(scope),
     resourceKey,
-    hopQueryKeys.configStatus(scope),
   ]
 }
 
@@ -209,16 +208,6 @@ export function useApplyManifestMutation() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: ApplyManifestInput) => runtime.requireApi().applyManifest(input),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: hopQueryKeys.all(runtime.scope.value) }),
-  })
-}
-
-export function useReloadConfigMutation() {
-  const runtime = useHopApiRuntime()
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: () => runtime.requireApi().reloadConfig(),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: hopQueryKeys.all(runtime.scope.value) }),
   })

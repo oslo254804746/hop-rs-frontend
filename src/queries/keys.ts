@@ -8,7 +8,4 @@ export const hopQueryKeys = {
   credentials: (scope: string) => [...hopQueryKeys.catalog(scope), 'credentials'] as const,
   accessKeys: (scope: string) => [...hopQueryKeys.catalog(scope), 'access-keys'] as const,
   sessions: (scope: string) => [...hopQueryKeys.all(scope), 'sessions'] as const,
-  configuration: (scope: string) => [...hopQueryKeys.all(scope), 'configuration'] as const,
-  configStatus: (scope: string) => [...hopQueryKeys.configuration(scope), 'status'] as const,
-  configSources: (scope: string) => [...hopQueryKeys.configuration(scope), 'sources'] as const,
 }

@@ -19,6 +19,7 @@ import { z } from 'zod'
 
 import { BaseButton, ConfirmDialog, EmptyState, InlineNotice, StatusBadge } from '@/components/ui'
 import type { Asset, AssetProtocol, AssetWriteInput } from '@/domain'
+import { useI18n } from '@/i18n'
 import {
   useAssetsQuery,
   useCreateAssetMutation,
@@ -47,12 +48,13 @@ const credentialsQuery = useCredentialsQuery()
 const createMutation = useCreateAssetMutation()
 const updateMutation = useUpdateAssetMutation()
 const deleteMutation = useDeleteAssetMutation()
+const { t } = useI18n()
 
 const search = ref(typeof route.query.q === 'string' ? route.query.q : '')
 const protocol = ref<'all' | AssetProtocol>(
   route.query.protocol === 'ssh' || route.query.protocol === 'tcp' ? route.query.protocol : 'all',
 )
-const ownership = ref<'all' | 'local' | 'declarative'>('all')
+const ownership = ref<'all' | 'local' | 'config'>('all')
 const credentialState = ref<'all' | 'configured' | 'missing'>('all')
 const editor = ref<HTMLDialogElement | null>(null)
 const editorOpen = ref(false)
@@ -103,19 +105,19 @@ const counts = computed(() => ({
   ssh: assetsQuery.data.value?.filter((asset) => asset.protocol === 'ssh').length ?? 0,
   tcp: assetsQuery.data.value?.filter((asset) => asset.protocol === 'tcp').length ?? 0,
   local: assetsQuery.data.value?.filter((asset) => asset.management?.mode === 'local').length ?? 0,
-  declarative: assetsQuery.data.value?.filter((asset) => asset.management?.mode === 'declarative').length ?? 0,
+  config: assetsQuery.data.value?.filter((asset) => asset.management?.mode === 'config').length ?? 0,
 }))
 
 function credentialName(asset: Asset) {
-  if (asset.protocol === 'tcp') return 'Not used'
-  if (asset.credentialId === null) return 'Missing'
-  return credentialsQuery.data.value?.find((credential) => credential.id === asset.credentialId)?.name ?? 'Configured'
+  if (asset.protocol === 'tcp') return t('Not used')
+  if (asset.credentialId === null) return t('Missing')
+  return credentialsQuery.data.value?.find((credential) => credential.id === asset.credentialId)?.name ?? t('Configured')
 }
 
 function ownershipLabel(asset: Asset) {
-  return asset.management?.mode === 'declarative'
-    ? `Source · ${asset.management.sourceId}`
-    : 'Local'
+  return asset.management?.mode === 'config'
+    ? t('Configuration file ownership')
+    : t('Panel / local ownership')
 }
 
 function setSelection(id: string | null) {
@@ -164,6 +166,7 @@ function openCreate() {
 }
 
 function openEdit(asset: Asset) {
+  if (asset.management?.mode === 'config') return
   editingAsset.value = asset
   Object.assign(form, {
     name: asset.name,
@@ -214,12 +217,12 @@ async function submitAsset() {
     closeEditor()
     setSelection(saved.id)
   } catch (error) {
-    feedback.value = error instanceof Error ? error.message : 'The asset could not be saved.'
+    feedback.value = error instanceof Error ? error.message : t('The asset could not be saved.')
   }
 }
 
 async function confirmDelete() {
-  if (selectedAsset.value === null) return
+  if (selectedAsset.value === null || selectedAsset.value.management?.mode === 'config') return
   feedback.value = ''
   try {
     await deleteMutation.mutateAsync(selectedAsset.value.id)
@@ -227,7 +230,7 @@ async function confirmDelete() {
     setSelection(null)
   } catch (error) {
     deleteOpen.value = false
-    feedback.value = error instanceof Error ? error.message : 'The asset could not be removed.'
+    feedback.value = error instanceof Error ? error.message : t('The asset could not be removed.')
   }
 }
 
@@ -258,24 +261,24 @@ watch([search, protocol], () => {
 
 <template>
   <section class="assets-page page-stack">
-    <InlineNotice v-if="feedback" tone="danger" title="Asset action was not completed">
+    <InlineNotice v-if="feedback" tone="danger" :title="t('Asset action was not completed')">
       <p>{{ feedback }}</p>
     </InlineNotice>
 
     <div class="assets-workspace panel" :class="{ 'has-selection': selectedAsset }">
-      <aside class="asset-context" aria-label="Asset filters">
+      <aside class="asset-context" :aria-label="t('Asset filters')">
         <header>
-          <span>Assets</span>
-          <BaseButton variant="quiet" aria-label="Create asset" @click="openCreate"><template #leading><Plus /></template></BaseButton>
+          <span>{{ t('Assets') }}</span>
+          <BaseButton variant="quiet" :aria-label="t('Create asset')" @click="openCreate"><template #leading><Plus /></template></BaseButton>
         </header>
-        <button :class="{ active: protocol === 'all' }" type="button" @click="protocol = 'all'">All assets <span>{{ counts.all }}</span></button>
+        <button :class="{ active: protocol === 'all' }" type="button" @click="protocol = 'all'">{{ t('All assets') }} <span>{{ counts.all }}</span></button>
         <button :class="{ active: protocol === 'ssh' }" type="button" @click="protocol = 'ssh'">SSH <span>{{ counts.ssh }}</span></button>
         <button :class="{ active: protocol === 'tcp' }" type="button" @click="protocol = 'tcp'">TCP <span>{{ counts.tcp }}</span></button>
         <template v-if="hasOwnership">
           <div class="context-seam" />
-          <small class="ownership-heading"><span>Ownership</span><em>Demo-only · synthetic</em></small>
-          <button :class="{ active: ownership === 'local' }" type="button" @click="ownership = ownership === 'local' ? 'all' : 'local'">Local <span>{{ counts.local }}</span></button>
-          <button :class="{ active: ownership === 'declarative' }" type="button" @click="ownership = ownership === 'declarative' ? 'all' : 'declarative'">Declarative <span>{{ counts.declarative }}</span></button>
+          <small class="ownership-heading"><span>{{ t('Ownership') }}</span></small>
+          <button :class="{ active: ownership === 'local' }" type="button" @click="ownership = ownership === 'local' ? 'all' : 'local'">{{ t('Panel / local ownership') }} <span>{{ counts.local }}</span></button>
+          <button :class="{ active: ownership === 'config' }" type="button" @click="ownership = ownership === 'config' ? 'all' : 'config'">{{ t('Configuration file ownership') }} <span>{{ counts.config }}</span></button>
         </template>
       </aside>
 
@@ -283,18 +286,18 @@ watch([search, protocol], () => {
         <header class="asset-toolbar">
           <label class="search-control">
             <Search :size="18" aria-hidden="true" />
-            <span class="sr-only">Search assets</span>
-            <input v-model="search" type="search" placeholder="Search assets…" />
+            <span class="sr-only">{{ t('Search assets') }}</span>
+            <input v-model="search" type="search" :placeholder="t('Search assets…')" />
           </label>
-          <label class="compact-select"><span class="sr-only">Protocol</span><select v-model="protocol"><option value="all">All protocols</option><option value="ssh">SSH</option><option value="tcp">TCP</option></select></label>
-          <label class="compact-select"><span class="sr-only">Credential status</span><select v-model="credentialState"><option value="all">Any credential</option><option value="configured">Configured</option><option value="missing">Missing</option></select></label>
-          <label v-if="hasOwnership" class="compact-select owner-select"><span class="sr-only">Ownership</span><select v-model="ownership"><option value="all">Any owner</option><option value="local">Local</option><option value="declarative">Declarative</option></select></label>
-          <BaseButton variant="primary" @click="openCreate"><template #leading><Plus /></template>New asset</BaseButton>
+          <label class="compact-select"><span class="sr-only">{{ t('Protocol') }}</span><select v-model="protocol"><option value="all">{{ t('All protocols') }}</option><option value="ssh">SSH</option><option value="tcp">TCP</option></select></label>
+          <label class="compact-select"><span class="sr-only">{{ t('Credential status') }}</span><select v-model="credentialState"><option value="all">{{ t('Any credential') }}</option><option value="configured">{{ t('Configured') }}</option><option value="missing">{{ t('Missing') }}</option></select></label>
+          <label v-if="hasOwnership" class="compact-select owner-select"><span class="sr-only">{{ t('Ownership') }}</span><select v-model="ownership"><option value="all">{{ t('Any owner') }}</option><option value="local">{{ t('Panel / local ownership') }}</option><option value="config">{{ t('Configuration file ownership') }}</option></select></label>
+          <BaseButton variant="primary" @click="openCreate"><template #leading><Plus /></template>{{ t('New asset') }}</BaseButton>
         </header>
 
-        <div class="asset-table" :class="{ 'no-ownership': !hasOwnership }" role="table" aria-label="Catalog assets">
+        <div class="asset-table" :class="{ 'no-ownership': !hasOwnership }" role="table" :aria-label="t('Catalog assets')">
           <div class="asset-head" role="row">
-            <span role="columnheader">Name</span><span role="columnheader">Protocol</span><span role="columnheader">Address</span><span role="columnheader">Credential</span><span v-if="hasOwnership" role="columnheader">Ownership</span>
+            <span role="columnheader">{{ t('Name') }}</span><span role="columnheader">{{ t('Protocol') }}</span><span role="columnheader">{{ t('Address') }}</span><span role="columnheader">{{ t('Credential') }}</span><span v-if="hasOwnership" role="columnheader">{{ t('Ownership') }}</span>
           </div>
 
           <button
@@ -308,76 +311,73 @@ watch([search, protocol], () => {
           >
             <span class="asset-name" role="cell">
               <span class="protocol-icon" aria-hidden="true"><Server v-if="asset.protocol === 'ssh'" :size="15" /><Boxes v-else :size="15" /></span>
-              <span><strong>{{ asset.name }}</strong><small>{{ asset.description || asset.tags.join(' · ') || 'No description' }}</small></span>
+              <span><strong>{{ asset.name }}</strong><small>{{ asset.description || asset.tags.join(' · ') || t('No description') }}</small></span>
             </span>
             <span role="cell"><StatusBadge :label="asset.protocol.toUpperCase()" tone="neutral" /></span>
             <span class="mono address" role="cell">{{ asset.hostname }}:{{ asset.port }}</span>
             <span class="credential-cell" :class="{ missing: asset.protocol === 'ssh' && !asset.credentialId }" role="cell"><CircleDot :size="13" aria-hidden="true" />{{ credentialName(asset) }}</span>
-            <span v-if="hasOwnership" role="cell"><StatusBadge :label="ownershipLabel(asset)" :tone="asset.management?.mode === 'declarative' ? 'info' : 'neutral'" /></span>
+            <span v-if="hasOwnership" role="cell"><StatusBadge :label="ownershipLabel(asset)" :tone="asset.management?.mode === 'config' ? 'info' : 'neutral'" /></span>
           </button>
 
-          <EmptyState v-if="!assetsQuery.isPending.value && filteredAssets.length === 0" :compact="true" title="No matching assets" description="Clear filters or add a local SSH or TCP target.">
-            <template #actions><BaseButton variant="secondary" @click="clearFilters"><template #leading><Filter /></template>Clear filters</BaseButton></template>
+          <EmptyState v-if="!assetsQuery.isPending.value && filteredAssets.length === 0" :compact="true" :title="t('No matching assets')" :description="t('Clear filters or add a local SSH or TCP target.')">
+            <template #actions><BaseButton variant="secondary" @click="clearFilters"><template #leading><Filter /></template>{{ t('Clear filters') }}</BaseButton></template>
           </EmptyState>
           <div v-if="assetsQuery.isPending.value" class="loading-rows" aria-label="Loading assets" aria-busy="true"><span /><span /><span /><span /></div>
         </div>
 
-        <footer class="inventory-footer"><span>{{ filteredAssets.length }} of {{ counts.all }} assets</span><span v-if="!hasOwnership">Ownership metadata is not exposed by this API</span></footer>
+        <footer class="inventory-footer"><span>{{ t('{visible} of {total} assets', { visible: filteredAssets.length, total: counts.all }) }}</span></footer>
       </section>
 
-      <aside v-if="selectedAsset" class="asset-inspector" aria-label="Selected asset">
+      <aside v-if="selectedAsset" class="asset-inspector" :aria-label="t('Selected asset')">
         <header class="inspector-heading">
           <span class="inspector-icon" aria-hidden="true"><Server v-if="selectedAsset.protocol === 'ssh'" :size="20" /><Boxes v-else :size="20" /></span>
-          <div><h2>{{ selectedAsset.name }}</h2><p>{{ selectedAsset.protocol.toUpperCase() }} asset</p></div>
+          <div><h2>{{ selectedAsset.name }}</h2><p>{{ t('{protocol} asset', { protocol: selectedAsset.protocol.toUpperCase() }) }}</p></div>
           <button class="close-inspector" type="button" aria-label="Close asset details" @click="setSelection(null)"><X :size="18" /></button>
         </header>
 
         <dl class="inspector-fields">
-          <div><dt>Protocol</dt><dd>{{ selectedAsset.protocol.toUpperCase() }}</dd></div>
-          <div><dt>Address</dt><dd class="mono">{{ selectedAsset.hostname }}:{{ selectedAsset.port }}</dd></div>
-          <div><dt>Credential</dt><dd>{{ credentialName(selectedAsset) }}</dd></div>
-          <div v-if="hasOwnership" class="ownership-field"><dt>Ownership</dt><dd>{{ ownershipLabel(selectedAsset) }}<small>Demo-only · synthetic</small></dd></div>
-          <div><dt>Updated</dt><dd>{{ formatTimestamp(selectedAsset.updatedAt) }}</dd></div>
-          <div v-if="selectedAsset.tags.length"><dt>Tags</dt><dd class="tag-list"><span v-for="tag in selectedAsset.tags" :key="tag">{{ tag }}</span></dd></div>
+          <div><dt>{{ t('Protocol') }}</dt><dd>{{ selectedAsset.protocol.toUpperCase() }}</dd></div>
+          <div><dt>{{ t('Address') }}</dt><dd class="mono">{{ selectedAsset.hostname }}:{{ selectedAsset.port }}</dd></div>
+          <div><dt>{{ t('Credential') }}</dt><dd>{{ credentialName(selectedAsset) }}</dd></div>
+          <div v-if="hasOwnership" class="ownership-field"><dt>{{ t('Ownership') }}</dt><dd>{{ ownershipLabel(selectedAsset) }}</dd></div>
+          <div><dt>{{ t('Updated') }}</dt><dd>{{ formatTimestamp(selectedAsset.updatedAt) }}</dd></div>
+          <div v-if="selectedAsset.tags.length"><dt>{{ t('Tags') }}</dt><dd class="tag-list"><span v-for="tag in selectedAsset.tags" :key="tag">{{ tag }}</span></dd></div>
         </dl>
 
-        <InlineNotice v-if="selectedAsset.management?.mode === 'declarative'" tone="info" title="Managed by a configuration source">
-          <p>Edit source <strong>{{ selectedAsset.management.sourceId }}</strong> and apply a new manifest revision.</p>
-        </InlineNotice>
-        <InlineNotice v-else-if="!hasOwnership" tone="neutral">
-          <p>This API does not expose ownership before a write. If a source owns this asset, Hop will reject the action safely.</p>
+        <InlineNotice v-if="selectedAsset.management?.mode === 'config'" tone="info" :title="t('Managed by hop.yaml')">
+          <p>{{ t('Config asset read-only explanation') }}</p>
         </InlineNotice>
 
-        <section class="inspector-actions">
-          <h3>Actions</h3>
-          <BaseButton variant="secondary" :disabled="selectedAsset.management?.mode === 'declarative'" @click="openEdit(selectedAsset)"><template #leading><Pencil /></template>Edit asset</BaseButton>
-          <BaseButton variant="danger" :disabled="selectedAsset.management?.mode === 'declarative'" @click="deleteOpen = true"><template #leading><Trash2 /></template>Remove asset</BaseButton>
+        <section v-if="selectedAsset.management?.mode !== 'config'" class="inspector-actions">
+          <h3>{{ t('Actions') }}</h3>
+          <BaseButton variant="secondary" @click="openEdit(selectedAsset)"><template #leading><Pencil /></template>{{ t('Edit asset') }}</BaseButton>
+          <BaseButton variant="danger" @click="deleteOpen = true"><template #leading><Trash2 /></template>{{ t('Remove asset') }}</BaseButton>
         </section>
       </aside>
 
       <div v-else class="asset-inspector inspector-empty" aria-hidden="true">
-        <Archive :size="25" /><p>Select an asset to inspect its Catalog record.</p>
+        <Archive :size="25" /><p>{{ t('Select an asset to inspect its Catalog record.') }}</p>
       </div>
     </div>
 
     <dialog ref="editor" class="asset-editor" @close="editorOpen = false" @cancel.prevent="closeEditor">
       <form class="editor-form" @submit.prevent="submitAsset">
-        <header><div><h2>{{ editingAsset ? 'Edit asset' : 'New asset' }}</h2><p>{{ editingAsset ? 'Update the local Catalog record.' : 'Add an SSH or TCP target to the local Catalog.' }}</p></div><button type="button" aria-label="Close editor" @click="closeEditor"><X :size="19" /></button></header>
+        <header><div><h2>{{ t(editingAsset ? 'Edit asset' : 'New asset') }}</h2><p>{{ t(editingAsset ? 'Update the local Catalog record.' : 'Add an SSH or TCP target to the local Catalog.') }}</p></div><button type="button" :aria-label="t('Close editor')" @click="closeEditor"><X :size="19" /></button></header>
         <InlineNotice v-if="feedback" tone="danger"><p>{{ feedback }}</p></InlineNotice>
         <div class="form-grid">
-          <label><span>Name</span><input v-model="form.name" autocomplete="off" :aria-invalid="Boolean(fieldErrors.name)" /><small v-if="fieldErrors.name">{{ fieldErrors.name }}</small></label>
-          <label><span>Protocol</span><select v-model="form.protocol"><option value="ssh">SSH</option><option value="tcp">TCP</option></select></label>
-          <label class="host-field"><span>Hostname or IP</span><input v-model="form.hostname" spellcheck="false" :aria-invalid="Boolean(fieldErrors.hostname)" /><small v-if="fieldErrors.hostname">{{ fieldErrors.hostname }}</small></label>
-          <label><span>Port</span><input v-model.number="form.port" type="number" min="1" max="65535" :aria-invalid="Boolean(fieldErrors.port)" /><small v-if="fieldErrors.port">{{ fieldErrors.port }}</small></label>
-          <label v-if="form.protocol === 'ssh'" class="wide-field"><span>Credential</span><select v-model="form.credentialId"><option value="">No credential</option><option v-for="credential in credentialsQuery.data.value ?? []" :key="credential.id" :value="credential.id">{{ credential.name }} · {{ credential.username }}</option></select></label>
-          <label class="wide-field"><span>Tags</span><input v-model="form.tags" placeholder="production, edge" /><small>Comma-separated labels.</small></label>
-          <label class="wide-field"><span>Description</span><textarea v-model="form.description" rows="3" /></label>
+          <label><span>{{ t('Name') }}</span><input v-model="form.name" autocomplete="off" :aria-invalid="Boolean(fieldErrors.name)" /><small v-if="fieldErrors.name">{{ fieldErrors.name }}</small></label>
+          <label><span>{{ t('Protocol') }}</span><select v-model="form.protocol"><option value="ssh">SSH</option><option value="tcp">TCP</option></select></label>
+          <label class="host-field"><span>{{ t('Hostname or IP') }}</span><input v-model="form.hostname" spellcheck="false" :aria-invalid="Boolean(fieldErrors.hostname)" /><small v-if="fieldErrors.hostname">{{ fieldErrors.hostname }}</small></label>
+          <label><span>{{ t('Port') }}</span><input v-model.number="form.port" type="number" min="1" max="65535" :aria-invalid="Boolean(fieldErrors.port)" /><small v-if="fieldErrors.port">{{ fieldErrors.port }}</small></label>
+          <label v-if="form.protocol === 'ssh'" class="wide-field"><span>{{ t('Credential') }}</span><select v-model="form.credentialId"><option value="">{{ t('No credential') }}</option><option v-for="credential in credentialsQuery.data.value ?? []" :key="credential.id" :value="credential.id">{{ credential.name }} · {{ credential.username }}</option></select></label>
+          <label class="wide-field"><span>{{ t('Tags') }}</span><input v-model="form.tags" placeholder="production, edge" /><small>{{ t('Comma-separated labels.') }}</small></label>
+          <label class="wide-field"><span>{{ t('Description') }}</span><textarea v-model="form.description" rows="3" /></label>
         </div>
-        <footer><BaseButton variant="secondary" @click="closeEditor">Cancel</BaseButton><BaseButton variant="primary" type="submit" :loading="createMutation.isPending.value || updateMutation.isPending.value"><template #leading><Plus /></template>{{ editingAsset ? 'Save changes' : 'Create asset' }}</BaseButton></footer>
+        <footer><BaseButton variant="secondary" @click="closeEditor">{{ t('Cancel') }}</BaseButton><BaseButton variant="primary" type="submit" :loading="createMutation.isPending.value || updateMutation.isPending.value"><template #leading><Plus /></template>{{ t(editingAsset ? 'Save changes' : 'Create asset action') }}</BaseButton></footer>
       </form>
     </dialog>
 
-    <ConfirmDialog v-model:open="deleteOpen" title="Remove this asset?" :description="selectedAsset ? `${selectedAsset.name} will be deleted from the local Catalog. This cannot be undone.` : ''" confirm-label="Remove asset" :busy="deleteMutation.isPending.value" @confirm="confirmDelete" />
+    <ConfirmDialog v-model:open="deleteOpen" :title="t('Remove this asset?')" :description="selectedAsset ? t('{name} will be deleted from the local Catalog. This cannot be undone.', { name: selectedAsset.name }) : ''" :confirm-label="t('Remove asset')" :busy="deleteMutation.isPending.value" @confirm="confirmDelete" />
   </section>
 </template>
 

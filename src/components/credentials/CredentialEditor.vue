@@ -4,6 +4,9 @@ import { computed, reactive, watch } from 'vue'
 
 import { BaseButton, FormField, InlineNotice } from '@/components/ui'
 import type { Credential, CredentialAuthType, CredentialWriteInput } from '@/domain'
+import { useI18n } from '@/i18n'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   mode: 'create' | 'rotate'
@@ -36,17 +39,13 @@ const form = reactive<FormState>({
 })
 
 const fieldErrors = reactive<Partial<Record<keyof FormState, string>>>({})
-const managedSource = computed(() => {
-  const management = props.credential?.management
-  return management?.mode === 'declarative' ? management.sourceId : null
-})
-const isManaged = computed(() => managedSource.value !== null)
+const isManaged = computed(() => props.credential?.management?.mode === 'config')
 const isRotate = computed(() => props.mode === 'rotate')
-const heading = computed(() => (isRotate.value ? 'Rotate credential' : 'New credential'))
-const submitLabel = computed(() => (isRotate.value ? 'Rotate secret' : 'Create credential'))
+const heading = computed(() => t(isRotate.value ? 'Rotate credential' : 'New credential'))
+const submitLabel = computed(() => t(isRotate.value ? 'Rotate secret' : 'Create credential'))
 const secretLabel = computed(() => {
-  if (form.authType === 'password') return 'New password'
-  return 'New private key'
+  if (form.authType === 'password') return t('New password')
+  return t('New private key')
 })
 
 function reset() {
@@ -68,17 +67,17 @@ function clearErrors() {
 function validate() {
   clearErrors()
 
-  if (!form.name.trim()) fieldErrors.name = 'Give this credential a recognizable name.'
-  if (!form.username.trim()) fieldErrors.username = 'Enter the target account username.'
+  if (!form.name.trim()) fieldErrors.name = t('Give this credential a recognizable name.')
+  if (!form.username.trim()) fieldErrors.username = t('Enter the target account username.')
 
   if (form.authType === 'password' && !form.password) {
-    fieldErrors.password = 'Enter the password that Hop should store.'
+    fieldErrors.password = t('Enter the password that Hop should store.')
   }
   if (form.authType !== 'password' && !form.privateKey.trim()) {
-    fieldErrors.privateKey = 'Paste the complete private key.'
+    fieldErrors.privateKey = t('Paste the complete private key.')
   }
   if (form.authType === 'key_passphrase' && !form.passphrase) {
-    fieldErrors.passphrase = 'Enter the passphrase for this private key.'
+    fieldErrors.passphrase = t('Enter the passphrase for this private key.')
   }
 
   return Object.keys(fieldErrors).length === 0
@@ -131,9 +130,9 @@ watch(
           {{ heading }}
         </h2>
         <p>
-          {{ isRotate
+          {{ t(isRotate
             ? 'The stored value is never revealed. Saving replaces it with the value entered here.'
-            : 'Hop encrypts this secret at rest and only returns configuration status.' }}
+            : 'Hop encrypts this secret at rest and only returns configuration status.') }}
         </p>
       </div>
     </header>
@@ -141,16 +140,15 @@ watch(
     <InlineNotice
       v-if="isManaged"
       tone="warning"
-      title="Managed by configuration"
+      :title="t('Managed by configuration')"
     >
-      Update this credential in source
-      <strong>{{ managedSource }}</strong> and reload the Catalog.
+      {{ t('Config credential editor explanation') }}
     </InlineNotice>
 
     <InlineNotice
       v-if="props.error"
       tone="danger"
-      title="Credential was not saved"
+      :title="t('Credential was not saved')"
     >
       {{ props.error }}
     </InlineNotice>
@@ -165,18 +163,18 @@ watch(
         class="credential-editor__identity"
       >
         <div>
-          <span>Name</span>
+          <span>{{ t('Name') }}</span>
           <strong>{{ form.name }}</strong>
         </div>
         <div>
-          <span>Target account</span>
+          <span>{{ t('Target account') }}</span>
           <strong>{{ form.username }}</strong>
         </div>
       </div>
 
       <template v-else>
         <FormField
-          label="Name"
+          :label="t('Name')"
           v-bind="fieldErrors.name ? { error: fieldErrors.name } : {}"
           required
         >
@@ -192,7 +190,7 @@ watch(
         </FormField>
 
         <FormField
-          label="Target username"
+          :label="t('Target username')"
           v-bind="fieldErrors.username ? { error: fieldErrors.username } : {}"
           required
         >
@@ -208,7 +206,7 @@ watch(
         </FormField>
 
         <FormField
-          label="Authentication"
+          :label="t('Authentication')"
           required
         >
           <template #default="{ controlProps }">
@@ -218,13 +216,13 @@ watch(
               :disabled="props.busy"
             >
               <option value="password">
-                Password
+                {{ t('Password') }}
               </option>
               <option value="key">
-                Private key
+                {{ t('Private key') }}
               </option>
               <option value="key_passphrase">
-                Private key + passphrase
+                {{ t('Private key + passphrase') }}
               </option>
             </select>
           </template>
@@ -239,7 +237,7 @@ watch(
             : form.authType !== 'password' && fieldErrors.privateKey
               ? { error: fieldErrors.privateKey }
               : {}),
-          ...(isRotate ? { hint: 'The current secret remains unchanged until you save.' } : {}),
+          ...(isRotate ? { hint: t('The current secret remains unchanged until you save.') } : {}),
         }"
         required
       >
@@ -250,7 +248,7 @@ watch(
             v-bind="controlProps"
             type="password"
             autocomplete="new-password"
-            placeholder="Enter a new password"
+            :placeholder="t('Enter a new password')"
             :disabled="props.busy || isManaged"
           >
           <textarea
@@ -269,7 +267,7 @@ watch(
 
       <FormField
         v-if="form.authType === 'key_passphrase'"
-        label="New passphrase"
+        :label="t('New passphrase')"
         v-bind="fieldErrors.passphrase ? { error: fieldErrors.passphrase } : {}"
         required
       >
@@ -279,7 +277,7 @@ watch(
             v-bind="controlProps"
             type="password"
             autocomplete="new-password"
-            placeholder="Enter the key passphrase"
+            :placeholder="t('Enter the key passphrase')"
             :disabled="props.busy || isManaged"
           >
         </template>
@@ -290,7 +288,7 @@ watch(
           :size="17"
           aria-hidden="true"
         />
-        <span>Secret values leave this form only in the write request and are never displayed again.</span>
+        <span>{{ t('Secret form boundary') }}</span>
       </div>
 
       <footer class="credential-editor__actions">
@@ -299,14 +297,14 @@ watch(
           :disabled="props.busy"
           @click="emit('cancel')"
         >
-          Cancel
+          {{ t('Cancel') }}
         </BaseButton>
         <BaseButton
           variant="primary"
           type="submit"
           :loading="props.busy"
           :disabled="isManaged"
-          :loading-label="isRotate ? 'Rotating credential' : 'Creating credential'"
+          :loading-label="t(isRotate ? 'Rotating credential' : 'Creating credential')"
         >
           <template #leading>
             <LockKeyhole />

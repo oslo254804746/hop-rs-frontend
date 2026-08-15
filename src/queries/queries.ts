@@ -57,21 +57,3 @@ export function useSessionsQuery() {
     enabled: runtime.ready,
   })
 }
-
-export function useConfigStatusQuery() {
-  const runtime = useHopApiRuntime()
-  return useQuery({
-    queryKey: computed(() => hopQueryKeys.configStatus(runtime.scope.value)),
-    queryFn: ({ signal }) => runtime.requireApi().getConfigStatus({ signal }),
-    enabled: runtime.ready,
-  })
-}
-
-export function useConfigSourcesQuery() {
-  const runtime = useHopApiRuntime()
-  return useQuery({
-    queryKey: computed(() => hopQueryKeys.configSources(runtime.scope.value)),
-    queryFn: ({ signal }) => runtime.requireApi().listConfigSources({ signal }),
-    enabled: runtime.ready,
-  })
-}

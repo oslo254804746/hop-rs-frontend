@@ -14,16 +14,16 @@ import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import { InlineNotice, StatusBadge } from '@/components/ui'
+import { useI18n } from '@/i18n'
 import {
   useAccessKeysQuery,
   useAssetsQuery,
-  useConfigStatusQuery,
   useCredentialsQuery,
   useSessionsQuery,
   useStatusQuery,
 } from '@/queries'
 import { useConnection } from '@/stores/connection'
-import { formatDuration, formatRelativeTime, pluralize } from '@/utils/format'
+import { formatDuration, formatRelativeTime } from '@/utils/format'
 
 const connection = useConnection()
 const statusQuery = useStatusQuery()
@@ -31,7 +31,7 @@ const assetsQuery = useAssetsQuery()
 const credentialsQuery = useCredentialsQuery()
 const accessKeysQuery = useAccessKeysQuery()
 const sessionsQuery = useSessionsQuery()
-const configQuery = useConfigStatusQuery()
+const { t } = useI18n()
 
 const activeSessions = computed(
   () => sessionsQuery.data.value?.filter((session) => session.status === 'started') ?? [],
@@ -45,38 +45,27 @@ const tcpCount = computed(
 )
 
 const attentionItems = computed(() => {
-  const items: Array<{ key: string; kind: string; name: string; message: string; time: string | null }> = []
-  for (const source of configQuery.data.value?.sources ?? []) {
-    if (source.lastErrorCode !== null) {
+  const items: Array<{ key: string; kind: string; name: string; message: string; time: string | null; to: string }> = []
+  for (const asset of assetsQuery.data.value ?? []) {
+    if (asset.protocol === 'ssh' && asset.credentialId === null) {
       items.push({
-        key: `source-${source.sourceId}`,
-        kind: 'Source error',
-        name: source.sourceId,
-        message: source.lastErrorMessage ?? source.lastErrorCode,
-        time: source.lastErrorAt,
+        key: `credential-${asset.id}`,
+        kind: t('Credential'),
+        name: asset.name,
+        message: t('This SSH asset has no target credential.'),
+        time: asset.updatedAt,
+        to: `/assets?asset=${encodeURIComponent(asset.id)}`,
       })
     }
-  }
-  for (const orphan of configQuery.data.value?.orphans ?? []) {
-    items.push({
-      key: `orphan-${orphan.sourceId}-${orphan.sourceKey}`,
-      kind: 'Orphan',
-      name: orphan.sourceKey,
-      message: `${orphan.resourceType} from ${orphan.sourceId} is no longer declared`,
-      time: orphan.orphanedAt,
-    })
-  }
-  if (connection.isDemo.value) {
-    for (const asset of assetsQuery.data.value ?? []) {
-      if (asset.health?.status === 'failed') {
-        items.push({
-          key: `asset-${asset.id}`,
-          kind: 'Demo health',
-          name: asset.name,
-          message: asset.health.errorMessage ?? 'Synthetic connection check failed',
-          time: asset.health.checkedAt,
-        })
-      }
+    if (connection.isDemo.value && asset.health?.status === 'failed') {
+      items.push({
+        key: `asset-${asset.id}`,
+        kind: t('Demo health'),
+        name: asset.name,
+        message: asset.health.errorMessage ?? t('Synthetic connection check failed'),
+        time: asset.health.checkedAt,
+        to: `/assets?asset=${encodeURIComponent(asset.id)}`,
+      })
     }
   }
   return items
@@ -89,22 +78,33 @@ const pageError = computed(
     assetsQuery.error.value ??
     credentialsQuery.error.value ??
     accessKeysQuery.error.value ??
-    sessionsQuery.error.value ??
-    configQuery.error.value,
+    sessionsQuery.error.value,
 )
 
+const ownershipCounts = computed(() => {
+  const resources = [
+    ...(assetsQuery.data.value ?? []),
+    ...(credentialsQuery.data.value ?? []),
+    ...(accessKeysQuery.data.value ?? []),
+  ]
+  return {
+    local: resources.filter((resource) => resource.management?.mode !== 'config').length,
+    config: resources.filter((resource) => resource.management?.mode === 'config').length,
+  }
+})
+
 const resourceSummary = computed(() => [
-  { label: 'SSH assets', count: sshCount.value, icon: Server, to: '/assets?protocol=ssh' },
-  { label: 'TCP assets', count: tcpCount.value, icon: Boxes, to: '/assets?protocol=tcp' },
-  { label: 'Credentials', count: credentialsQuery.data.value?.length ?? 0, icon: KeyRound, to: '/credentials' },
-  { label: 'Access keys', count: accessKeysQuery.data.value?.length ?? 0, icon: ShieldCheck, to: '/access' },
+  { label: t('SSH assets'), count: sshCount.value, icon: Server, to: '/assets?protocol=ssh' },
+  { label: t('TCP assets'), count: tcpCount.value, icon: Boxes, to: '/assets?protocol=tcp' },
+  { label: t('Credentials'), count: credentialsQuery.data.value?.length ?? 0, icon: KeyRound, to: '/credentials' },
+  { label: t('Access keys'), count: accessKeysQuery.data.value?.length ?? 0, icon: ShieldCheck, to: '/access' },
 ])
 </script>
 
 <template>
   <section class="overview page-stack" aria-labelledby="overview-summary">
-    <InlineNotice v-if="pageError" tone="danger" title="Some instance data could not be loaded">
-      <p>{{ pageError instanceof Error ? pageError.message : 'Refresh the page or check the instance connection.' }}</p>
+    <InlineNotice v-if="pageError" tone="danger" :title="t('Some instance data could not be loaded')">
+      <p>{{ pageError instanceof Error ? pageError.message : t('Refresh the page or check the instance connection.') }}</p>
     </InlineNotice>
 
     <section class="status-spine panel" :aria-busy="statusQuery.isPending.value">
@@ -115,15 +115,15 @@ const resourceSummary = computed(() => [
         </span>
         <div>
           <h2 id="overview-summary">
-            {{ connection.state.mode === 'reauth' ? 'Authentication required' : statusQuery.error.value ? 'Connection needs attention' : statusQuery.isPending.value ? 'Reading instance…' : 'API connected' }}
+            {{ connection.state.mode === 'reauth' ? t('Authentication required') : statusQuery.error.value ? t('Connection needs attention') : statusQuery.isPending.value ? t('Reading instance…') : t('API connected') }}
           </h2>
-          <p>{{ connection.state.mode === 'reauth' ? 'Reconnect to read the saved instance' : statusQuery.error.value ? 'Catalog state is unavailable' : 'Control API and Catalog are available' }}</p>
+          <p>{{ connection.state.mode === 'reauth' ? t('Reconnect to read the saved instance') : statusQuery.error.value ? t('Catalog state is unavailable') : t('Control API and Catalog are available') }}</p>
         </div>
       </div>
 
       <dl class="status-facts tabular">
         <div>
-          <dt>Version</dt>
+          <dt>{{ t('Version') }}</dt>
           <dd>{{ statusQuery.data.value?.version ?? '—' }}</dd>
         </div>
         <div>
@@ -131,13 +131,13 @@ const resourceSummary = computed(() => [
           <dd>r{{ statusQuery.data.value?.catalogRevision ?? '—' }}</dd>
         </div>
         <div>
-          <dt>Recent active</dt>
-          <dd class="accent-value">{{ pluralize(activeSessions.length, 'session') }}</dd>
+          <dt>{{ t('Recent active') }}</dt>
+          <dd class="accent-value">{{ t('{count} active sessions', { count: activeSessions.length }) }}</dd>
         </div>
       </dl>
     </section>
 
-    <nav class="resource-strip panel" aria-label="Catalog resources">
+    <nav class="resource-strip panel" :aria-label="t('Catalog resources')">
       <RouterLink v-for="resource in resourceSummary" :key="resource.label" :to="resource.to" class="resource-stat">
         <component :is="resource.icon" :size="20" :stroke-width="1.7" aria-hidden="true" />
         <span>
@@ -153,14 +153,14 @@ const resourceSummary = computed(() => [
         <section class="section-panel panel">
           <header class="section-heading">
             <div>
-              <h2>Needs attention</h2>
-              <p>Configuration facts the API can verify.</p>
+              <h2>{{ t('Needs attention') }}</h2>
+              <p>{{ t('Catalog records that need a safe next action.') }}</p>
             </div>
-            <RouterLink to="/configuration">Configuration <ArrowRight :size="15" /></RouterLink>
+            <RouterLink to="/configuration">{{ t('Settings') }} <ArrowRight :size="15" /></RouterLink>
           </header>
 
           <div v-if="attentionItems.length" class="attention-list">
-            <RouterLink v-for="item in attentionItems" :key="item.key" to="/configuration" class="attention-row">
+            <RouterLink v-for="item in attentionItems" :key="item.key" :to="item.to" class="attention-row">
               <StatusBadge :label="item.kind" tone="warning" />
               <span class="attention-name">{{ item.name }}</span>
               <span class="attention-message">{{ item.message }}</span>
@@ -169,34 +169,34 @@ const resourceSummary = computed(() => [
           </div>
           <div v-else class="quiet-state">
             <CircleCheck :size="20" aria-hidden="true" />
-            <span><strong>No reported configuration problems</strong><small>Sources have no current error and no resources are orphaned.</small></span>
+            <span><strong>{{ t('No Catalog action needed') }}</strong><small>{{ t('Every SSH asset has a target credential.') }}</small></span>
           </div>
         </section>
 
         <section class="section-panel panel">
           <header class="section-heading">
             <div>
-              <h2>Recent sessions</h2>
-              <p>The latest records returned by this instance.</p>
+              <h2>{{ t('Recent sessions') }}</h2>
+              <p>{{ t('The latest records returned by this instance.') }}</p>
             </div>
-            <RouterLink to="/sessions">All sessions <ArrowRight :size="15" /></RouterLink>
+            <RouterLink to="/sessions">{{ t('All sessions') }} <ArrowRight :size="15" /></RouterLink>
           </header>
 
-          <div class="session-table" role="table" aria-label="Recent sessions">
+          <div class="session-table" role="table" :aria-label="t('Recent sessions')">
             <div class="session-head" role="row">
-              <span role="columnheader">Started</span><span role="columnheader">Asset</span><span role="columnheader">Mode</span><span role="columnheader">Key</span><span role="columnheader">Duration</span><span role="columnheader">Status</span>
+              <span role="columnheader">{{ t('Started') }}</span><span role="columnheader">{{ t('Asset') }}</span><span role="columnheader">{{ t('Mode') }}</span><span role="columnheader">{{ t('Key') }}</span><span role="columnheader">{{ t('Duration') }}</span><span role="columnheader">{{ t('Status') }}</span>
             </div>
             <RouterLink v-for="session in recentSessions" :key="session.id" to="/sessions" class="session-row" role="row">
               <time class="tabular" role="cell">{{ formatRelativeTime(session.startedAt) }}</time>
-              <strong role="cell">{{ session.assetName ?? session.targetHost ?? 'Unknown target' }}</strong>
+              <strong role="cell">{{ session.assetName ?? session.targetHost ?? t('Unknown target') }}</strong>
               <span role="cell">{{ session.mode }}</span>
               <span role="cell">{{ session.keyName ?? session.keyFingerprint }}</span>
               <span class="tabular" role="cell">{{ formatDuration(session.startedAt, session.endedAt) }}</span>
-              <StatusBadge :label="session.status === 'started' ? 'Active' : session.status" :tone="session.status === 'started' || session.status === 'ok' ? 'success' : 'danger'" />
+              <StatusBadge :label="session.status === 'started' ? t('Active') : session.status" :tone="session.status === 'started' || session.status === 'ok' ? 'success' : 'danger'" />
             </RouterLink>
             <div v-if="recentSessions.length === 0" class="quiet-state">
               <Clock3 :size="20" aria-hidden="true" />
-              <span><strong>No session records</strong><small>Recent connections will appear here.</small></span>
+              <span><strong>{{ t('No session records') }}</strong><small>{{ t('Recent connections will appear here.') }}</small></span>
             </div>
           </div>
         </section>
@@ -206,33 +206,38 @@ const resourceSummary = computed(() => [
         <section class="section-panel panel catalog-panel">
           <header class="section-heading">
             <div>
-              <h2>Catalog snapshot</h2>
-              <p>Inventory at revision {{ configQuery.data.value?.revision ?? '—' }}.</p>
+              <h2>{{ t('Catalog snapshot') }}</h2>
+              <p>{{ t('Catalog at current revision') }} {{ statusQuery.data.value?.catalogRevision ?? '—' }}.</p>
             </div>
           </header>
           <dl class="catalog-list">
-            <div><dt>Total assets</dt><dd class="tabular">{{ assetsQuery.data.value?.length ?? 0 }}</dd></div>
-            <div><dt>Credentials</dt><dd class="tabular">{{ credentialsQuery.data.value?.length ?? 0 }}</dd></div>
-            <div><dt>Access keys</dt><dd class="tabular">{{ accessKeysQuery.data.value?.length ?? 0 }}</dd></div>
-            <div><dt>Manifest schema</dt><dd class="mono">{{ configQuery.data.value?.manifestApiVersion ?? '—' }}</dd></div>
+            <div><dt>{{ t('Total assets') }}</dt><dd class="tabular">{{ assetsQuery.data.value?.length ?? 0 }}</dd></div>
+            <div><dt>{{ t('Credentials') }}</dt><dd class="tabular">{{ credentialsQuery.data.value?.length ?? 0 }}</dd></div>
+            <div><dt>{{ t('Access keys') }}</dt><dd class="tabular">{{ accessKeysQuery.data.value?.length ?? 0 }}</dd></div>
+            <div><dt>{{ t('Active sessions') }}</dt><dd class="tabular">{{ activeSessions.length }}</dd></div>
           </dl>
         </section>
 
         <section class="section-panel panel sources-panel">
           <header class="section-heading">
             <div>
-              <h2>Configuration sources</h2>
-              <p>{{ pluralize(configQuery.data.value?.sources.length ?? 0, 'source') }}</p>
+              <h2>{{ t('Management boundary') }}</h2>
+              <p>{{ t('Edit panel resources here; edit configuration resources in hop.yaml.') }}</p>
             </div>
+            <RouterLink to="/configuration">{{ t('Settings') }} <ArrowRight :size="15" /></RouterLink>
           </header>
           <div class="source-list">
-            <div v-for="source in configQuery.data.value?.sources ?? []" :key="source.sourceId" class="source-row">
-              <span><strong>{{ source.sourceId }}</strong><small>generation {{ source.generation }}</small></span>
-              <StatusBadge :label="source.lastErrorCode ? 'Error' : 'Current'" :tone="source.lastErrorCode ? 'danger' : 'success'" />
+            <div class="source-row">
+              <span><strong>{{ t('Panel / local') }}</strong><small>{{ t('Editable in this workspace') }}</small></span>
+              <StatusBadge :label="String(ownershipCounts.local)" tone="success" />
             </div>
-            <div v-if="!configQuery.data.value?.sources.length" class="quiet-state compact">
+            <div class="source-row">
+              <span><strong>{{ t('Configuration file') }}</strong><small>{{ t('Read-only in the panel') }}</small></span>
+              <StatusBadge :label="String(ownershipCounts.config)" tone="info" />
+            </div>
+            <div v-if="ownershipCounts.local + ownershipCounts.config === 0" class="quiet-state compact">
               <CircleGauge :size="19" aria-hidden="true" />
-              <span><strong>No configured sources</strong><small>Local Catalog resources remain available.</small></span>
+              <span><strong>{{ t('Empty Catalog') }}</strong><small>{{ t('Add your first resource from the panel.') }}</small></span>
             </div>
           </div>
         </section>
@@ -240,7 +245,7 @@ const resourceSummary = computed(() => [
     </div>
 
     <p v-if="connection.isDemo.value" class="demo-disclosure">
-      Demo workspace · resource ownership and asset checks on this page are synthetic examples, not live measurements.
+      {{ t('Demo workspace disclosure') }}
     </p>
   </section>
 </template>

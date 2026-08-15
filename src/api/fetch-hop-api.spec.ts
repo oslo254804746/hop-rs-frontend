@@ -31,7 +31,7 @@ function jsonResponse(value: unknown, init: ResponseInit = {}): Response {
 describe('createFetchHopApi', () => {
   it('normalizes the base URL, authenticates, maps status, and reports real capabilities', async () => {
     const stub = queuedFetch([
-      jsonResponse({ status: 'ok', version: '0.2.0', catalog_revision: 42 }),
+      jsonResponse({ status: 'ok', version: '0.2.1', catalog_revision: 42 }),
     ])
     const api = createFetchHopApi({
       baseUrl: 'https://hop.example/',
@@ -41,10 +41,10 @@ describe('createFetchHopApi', () => {
 
     await expect(api.getStatus()).resolves.toEqual({
       status: 'ok',
-      version: '0.2.0',
+      version: '0.2.1',
       catalogRevision: 42,
     })
-    expect(api.capabilities).toEqual({ ownership: false, assetHealth: false })
+    expect(api.capabilities).toEqual({ ownership: true, assetHealth: false })
     expect(stub.calls[0]?.input).toBe('https://hop.example/api/v1/status')
     const headers = new Headers(stub.calls[0]?.init?.headers)
     expect(headers.get('Authorization')).toBe('Bearer management-token')

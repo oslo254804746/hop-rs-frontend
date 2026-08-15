@@ -1,6 +1,6 @@
 {
   "name": "hop-rs-frontend",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "engines": {
@@ -15,7 +15,8 @@
     "lint": "eslint . --max-warnings=0",
     "test": "vitest",
     "test:unit": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:container": "sh scripts/test-production-container.sh"
   },
   "dependencies": {
     "@lucide/vue": "1.31.0",

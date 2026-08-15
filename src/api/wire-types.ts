@@ -29,6 +29,7 @@ export interface WireAsset {
   credential_id: string | null
   created_at: string | null
   updated_at: string | null
+  ownership: 'local' | 'config'
 }
 
 export interface WireAssetWriteRequest {
@@ -49,6 +50,7 @@ export interface WireCredential {
   password: SecretStatus
   private_key: SecretStatus
   passphrase: SecretStatus
+  ownership: 'local' | 'config'
 }
 
 export interface WireCredentialWriteRequest {
@@ -67,6 +69,7 @@ export interface WireAccessKey {
   enabled: boolean
   access_mode: AccessMode
   assets: string[] | null
+  ownership: 'local' | 'config'
 }
 
 export interface WireAccessKeyCreateRequest {

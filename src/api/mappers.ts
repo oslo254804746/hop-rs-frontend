@@ -53,6 +53,7 @@ export function mapAsset(value: WireAsset): Asset {
     credentialId: value.credential_id,
     createdAt: value.created_at,
     updatedAt: value.updated_at,
+    management: { mode: value.ownership },
   }
 }
 
@@ -77,6 +78,7 @@ export function mapCredential(value: WireCredential): Credential {
     password: value.password,
     privateKey: value.private_key,
     passphrase: value.passphrase,
+    management: { mode: value.ownership },
   }
 }
 
@@ -99,6 +101,7 @@ export function mapAccessKey(value: WireAccessKey): AccessKey {
     enabled: value.enabled,
     accessMode: value.access_mode,
     assetIds: value.assets,
+    management: { mode: value.ownership },
   }
 }
 

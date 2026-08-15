@@ -28,6 +28,7 @@ import {
   StatusBadge,
 } from '@/components/ui'
 import type { AccessKey, AccessKeyCreateInput } from '@/domain'
+import { useI18n } from '@/i18n'
 import {
   useAccessKeysQuery,
   useAssetsQuery,
@@ -47,6 +48,7 @@ const enabledMutation = useSetAccessKeyEnabledMutation()
 const accessMutation = useSetAccessKeyAccessMutation()
 const deleteMutation = useDeleteAccessKeyMutation()
 const runtime = useHopApiRuntime()
+const { t } = useI18n()
 
 const search = ref('')
 const selectedId = ref<string | null>(null)
@@ -71,10 +73,9 @@ const filteredAccessKeys = computed(() => {
 const selectedAccessKey = computed(
   () => accessKeys.value.find((accessKey) => accessKey.id === selectedId.value) ?? null,
 )
-const selectedManagedSource = computed(() => {
-  const management = selectedAccessKey.value?.management
-  return management?.mode === 'declarative' ? management.sourceId : null
-})
+const selectedConfigManaged = computed(
+  () => selectedAccessKey.value?.management?.mode === 'config',
+)
 const selectedAssets = computed(() => {
   const ids = selectedAccessKey.value?.assetIds
   if (ids === null || ids === undefined) return []
@@ -104,9 +105,11 @@ watch(
 )
 
 function scopeLabel(accessKey: AccessKey) {
-  if (accessKey.assetIds === null) return 'All assets'
-  if (accessKey.assetIds.length === 0) return 'No assets'
-  return `${accessKey.assetIds.length} ${accessKey.assetIds.length === 1 ? 'asset' : 'assets'}`
+  if (accessKey.assetIds === null) return t('All assets scope')
+  if (accessKey.assetIds.length === 0) return t('No assets scope')
+  return t(accessKey.assetIds.length === 1 ? '{count} asset' : '{count} assets', {
+    count: accessKey.assetIds.length,
+  })
 }
 
 function scopeTone(accessKey: AccessKey) {
@@ -147,7 +150,7 @@ function openCreate() {
 }
 
 function openScope() {
-  if (!selectedAccessKey.value || selectedManagedSource.value) return
+  if (!selectedAccessKey.value || selectedConfigManaged.value) return
   clearOperationState()
   editorMode.value = 'scope'
 }
@@ -171,7 +174,7 @@ async function createAccessKey(input: AccessKeyCreateInput) {
 
 async function updateScope(assetIds: string[] | null) {
   const accessKey = selectedAccessKey.value
-  if (!accessKey || selectedManagedSource.value) return
+  if (!accessKey || selectedConfigManaged.value) return
 
   clearOperationState()
   try {
@@ -185,7 +188,7 @@ async function updateScope(assetIds: string[] | null) {
 
 async function toggleEnabled() {
   const accessKey = selectedAccessKey.value
-  if (!accessKey || selectedManagedSource.value) return
+  if (!accessKey || selectedConfigManaged.value) return
 
   clearOperationState()
   try {
@@ -198,7 +201,7 @@ async function toggleEnabled() {
 
 async function deleteAccessKey() {
   const accessKey = selectedAccessKey.value
-  if (!accessKey || selectedManagedSource.value) return
+  if (!accessKey || selectedConfigManaged.value) return
 
   clearOperationState()
   try {
@@ -217,16 +220,16 @@ async function deleteAccessKey() {
   <div class="page-stack access-page">
     <header class="page-intro access-page__intro">
       <div>
-        <h1>Access</h1>
-        <p>Ingress SSH public keys and the exact Catalog assets each key may reach.</p>
+        <h1>{{ t('Access') }}</h1>
+        <p>{{ t('Ingress SSH public keys and the exact Catalog assets each key may reach.') }}</p>
       </div>
       <div class="access-page__intro-actions">
         <button
           class="access-page__icon-button"
           type="button"
           :disabled="accessKeysQuery.isFetching.value"
-          aria-label="Refresh access keys"
-          title="Refresh access keys"
+          :aria-label="t('Refresh access keys')"
+          :title="t('Refresh access keys')"
           @click="accessKeysQuery.refetch()"
         >
           <RefreshCw
@@ -243,7 +246,7 @@ async function deleteAccessKey() {
           <template #leading>
             <Plus />
           </template>
-          Add public key
+          {{ t('Add public key') }}
         </BaseButton>
       </div>
     </header>
@@ -251,15 +254,15 @@ async function deleteAccessKey() {
     <InlineNotice
       v-if="runtime.mode.value === 'reauth'"
       tone="warning"
-      title="Reconnect to manage access"
+      :title="t('Reconnect to manage access')"
     >
-      Your management token is intentionally absent after a refresh. Reconnect from the global connection control.
+      {{ t('Reauthentication explanation') }}
     </InlineNotice>
 
     <InlineNotice
       v-if="successMessage"
       tone="success"
-      title="Catalog updated"
+      :title="t('Catalog updated')"
     >
       {{ successMessage }}
     </InlineNotice>
@@ -267,7 +270,7 @@ async function deleteAccessKey() {
     <InlineNotice
       v-if="operationError && editorMode === null"
       tone="danger"
-      title="Access action failed"
+      :title="t('Access action failed')"
     >
       {{ operationError }}
     </InlineNotice>
@@ -280,17 +283,17 @@ async function deleteAccessKey() {
               :size="17"
               aria-hidden="true"
             />
-            <span class="sr-only">Search access keys</span>
+            <span class="sr-only">{{ t('Search access keys') }}</span>
             <input
               v-model="search"
               type="search"
-              placeholder="Search key or fingerprint"
+              :placeholder="t('Search key or fingerprint')"
               autocomplete="off"
             >
             <button
               v-if="search"
               type="button"
-              aria-label="Clear search"
+              :aria-label="t('Clear search')"
               @click="search = ''"
             >
               <X
@@ -319,7 +322,7 @@ async function deleteAccessKey() {
           v-else-if="accessKeysQuery.isError.value && accessKeys.length === 0"
           class="access-list__error"
           tone="danger"
-          title="Access keys could not be loaded"
+          :title="t('Access keys could not be loaded')"
         >
           {{ queryError }}
           <template #actions>
@@ -327,15 +330,15 @@ async function deleteAccessKey() {
               variant="secondary"
               @click="accessKeysQuery.refetch()"
             >
-              Retry
+              {{ t('Retry') }}
             </BaseButton>
           </template>
         </InlineNotice>
 
         <EmptyState
           v-else-if="accessKeys.length === 0"
-          title="No access keys yet"
-          description="Register an SSH public key to authorize ingress into Hop."
+          :title="t('No access keys yet')"
+          :description="t('Register an SSH public key to authorize ingress into Hop.')"
           :icon="KeyRound"
           compact
         >
@@ -344,15 +347,15 @@ async function deleteAccessKey() {
               variant="primary"
               @click="openCreate"
             >
-              Add public key
+              {{ t('Add public key') }}
             </BaseButton>
           </template>
         </EmptyState>
 
         <EmptyState
           v-else-if="filteredAccessKeys.length === 0"
-          title="No matching access keys"
-          description="Try another name, fingerprint, or scope."
+          :title="t('No matching access keys')"
+          :description="t('Try another name, fingerprint, or scope.')"
           :icon="Search"
           compact
         >
@@ -361,7 +364,7 @@ async function deleteAccessKey() {
               variant="secondary"
               @click="search = ''"
             >
-              Clear search
+              {{ t('Clear search') }}
             </BaseButton>
           </template>
         </EmptyState>
@@ -398,7 +401,7 @@ async function deleteAccessKey() {
               </span>
               <span class="access-row__meta">
                 <StatusBadge
-                  :label="accessKey.enabled ? 'Enabled' : 'Disabled'"
+                  :label="t(accessKey.enabled ? 'Enabled' : 'Disabled')"
                   :tone="accessKey.enabled ? 'success' : 'neutral'"
                   :icon="accessKey.enabled ? Check : Pause"
                 />
@@ -451,18 +454,18 @@ async function deleteAccessKey() {
               </p>
             </div>
             <StatusBadge
-              :label="selectedAccessKey.enabled ? 'Enabled' : 'Disabled'"
+              :label="t(selectedAccessKey.enabled ? 'Enabled' : 'Disabled')"
               :tone="selectedAccessKey.enabled ? 'success' : 'neutral'"
               :icon="selectedAccessKey.enabled ? Check : Pause"
             />
           </header>
 
           <InlineNotice
-            v-if="selectedManagedSource"
+            v-if="selectedConfigManaged"
             tone="warning"
-            title="Declarative access key"
+            :title="t('Managed by hop.yaml')"
           >
-            Source <strong>{{ selectedManagedSource }}</strong> owns this key. Edit its manifest to change state or scope.
+            {{ t('Config access read-only explanation') }}
           </InlineNotice>
 
           <section
@@ -475,11 +478,11 @@ async function deleteAccessKey() {
                 aria-hidden="true"
               />
               <h3 id="access-fingerprint-heading">
-                Public-key fingerprint
+                {{ t('Public-key fingerprint') }}
               </h3>
             </div>
             <code>{{ selectedAccessKey.fingerprint }}</code>
-            <p>This identifies the registered public key. Hop does not store or return its private key.</p>
+            <p>{{ t('Fingerprint explanation') }}</p>
           </section>
 
           <section
@@ -489,9 +492,9 @@ async function deleteAccessKey() {
             <div class="access-detail__section-heading">
               <div>
                 <h3 id="access-scope-heading">
-                  Asset access
+                  {{ t('Asset access') }}
                 </h3>
-                <p>Exactly what this ingress key can reach.</p>
+                <p>{{ t('Exactly what this ingress key can reach.') }}</p>
               </div>
               <StatusBadge
                 :label="scopeLabel(selectedAccessKey)"
@@ -509,8 +512,8 @@ async function deleteAccessKey() {
                 aria-hidden="true"
               />
               <div>
-                <strong>All Catalog assets</strong>
-                <p>New assets are included automatically.</p>
+                <strong>{{ t('All Catalog assets') }}</strong>
+                <p>{{ t('New assets are included automatically.') }}</p>
               </div>
             </div>
 
@@ -523,8 +526,8 @@ async function deleteAccessKey() {
                 aria-hidden="true"
               />
               <div>
-                <strong>No asset access</strong>
-                <p>The key remains registered but every target is denied.</p>
+                <strong>{{ t('No asset access') }}</strong>
+                <p>{{ t('The key remains registered but every target is denied.') }}</p>
               </div>
             </div>
 
@@ -546,46 +549,46 @@ async function deleteAccessKey() {
             </ul>
           </section>
 
-          <footer class="access-detail__actions">
+          <footer v-if="!selectedConfigManaged" class="access-detail__actions">
             <BaseButton
               variant="secondary"
               :loading="enabledMutation.isPending.value"
-              :disabled="Boolean(selectedManagedSource) || !runtime.ready.value"
+              :disabled="!runtime.ready.value"
               @click="toggleEnabled"
             >
               <template #leading>
                 <Pause v-if="selectedAccessKey.enabled" />
                 <Play v-else />
               </template>
-              {{ selectedAccessKey.enabled ? 'Disable key' : 'Enable key' }}
+              {{ t(selectedAccessKey.enabled ? 'Disable key' : 'Enable key') }}
             </BaseButton>
             <BaseButton
               variant="secondary"
-              :disabled="Boolean(selectedManagedSource) || !runtime.ready.value"
+              :disabled="!runtime.ready.value"
               @click="openScope"
             >
               <template #leading>
                 <ListChecks />
               </template>
-              Edit access
+              {{ t('Edit access') }}
             </BaseButton>
             <BaseButton
               variant="quiet"
-              :disabled="Boolean(selectedManagedSource) || !runtime.ready.value"
+              :disabled="!runtime.ready.value"
               @click="deleteOpen = true"
             >
               <template #leading>
                 <Trash2 />
               </template>
-              Delete
+              {{ t('Delete') }}
             </BaseButton>
           </footer>
         </template>
 
         <EmptyState
           v-else
-          title="Select an access key"
-          description="Choose a row to inspect its fingerprint, state, and asset scope."
+          :title="t('Select an access key')"
+          :description="t('Choose a row to inspect its fingerprint, state, and asset scope.')"
           :icon="CircleDotDashed"
           compact
         />
@@ -594,11 +597,11 @@ async function deleteAccessKey() {
 
     <ConfirmDialog
       v-model:open="deleteOpen"
-      title="Delete access key?"
+      :title="t('Delete access key?')"
       :description="selectedAccessKey
         ? `${selectedAccessKey.name} will immediately lose ingress access to Hop.`
         : 'This access key will be deleted.'"
-      confirm-label="Delete access key"
+      :confirm-label="t('Delete access key')"
       :busy="deleteMutation.isPending.value"
       @confirm="deleteAccessKey"
     />

@@ -24,6 +24,7 @@ import {
   StatusBadge,
 } from '@/components/ui'
 import type { Credential, CredentialAuthType, CredentialWriteInput } from '@/domain'
+import { useI18n } from '@/i18n'
 import {
   useCreateCredentialMutation,
   useCredentialsQuery,
@@ -39,6 +40,7 @@ const createMutation = useCreateCredentialMutation()
 const updateMutation = useUpdateCredentialMutation()
 const deleteMutation = useDeleteCredentialMutation()
 const runtime = useHopApiRuntime()
+const { t } = useI18n()
 
 const search = ref('')
 const selectedId = ref<string | null>(null)
@@ -64,10 +66,9 @@ const selectedCredential = computed(
 const mutationPending = computed(
   () => createMutation.isPending.value || updateMutation.isPending.value || deleteMutation.isPending.value,
 )
-const selectedManagedSource = computed(() => {
-  const management = selectedCredential.value?.management
-  return management?.mode === 'declarative' ? management.sourceId : null
-})
+const selectedConfigManaged = computed(
+  () => selectedCredential.value?.management?.mode === 'config',
+)
 const queryError = computed(() => errorMessage(credentialsQuery.error.value))
 
 watch(
@@ -85,19 +86,19 @@ watch(
 )
 
 function authLabel(authType: CredentialAuthType) {
-  if (authType === 'password') return 'Password'
-  if (authType === 'key') return 'Private key'
-  return 'Key + passphrase'
+  if (authType === 'password') return t('Password')
+  if (authType === 'key') return t('Private key')
+  return t('Key + passphrase')
 }
 
 function secretSummary(credential: Credential) {
-  if (credential.authType === 'password') return credential.password === 'configured' ? 'Password set' : 'Password missing'
+  if (credential.authType === 'password') return t(credential.password === 'configured' ? 'Password set' : 'Password missing')
   if (credential.authType === 'key_passphrase') {
     return credential.privateKey === 'configured' && credential.passphrase === 'configured'
-      ? 'Key and passphrase set'
-      : 'Secret incomplete'
+      ? t('Key and passphrase set')
+      : t('Secret incomplete')
   }
-  return credential.privateKey === 'configured' ? 'Private key set' : 'Private key missing'
+  return t(credential.privateKey === 'configured' ? 'Private key set' : 'Private key missing')
 }
 
 function hasConfiguredSecret(credential: Credential) {
@@ -131,7 +132,7 @@ function openCreate() {
 }
 
 function openRotate() {
-  if (!selectedCredential.value || selectedManagedSource.value) return
+  if (!selectedCredential.value || selectedConfigManaged.value) return
   clearOperationState()
   editorMode.value = 'rotate'
 }
@@ -155,7 +156,7 @@ async function createCredential(input: CredentialWriteInput) {
 
 async function rotateCredential(input: CredentialWriteInput) {
   const credential = selectedCredential.value
-  if (!credential || selectedManagedSource.value) return
+  if (!credential || selectedConfigManaged.value) return
 
   clearOperationState()
   try {
@@ -169,7 +170,7 @@ async function rotateCredential(input: CredentialWriteInput) {
 
 async function deleteCredential() {
   const credential = selectedCredential.value
-  if (!credential || selectedManagedSource.value) return
+  if (!credential || selectedConfigManaged.value) return
 
   clearOperationState()
   try {
@@ -188,16 +189,16 @@ async function deleteCredential() {
   <div class="page-stack credentials-page">
     <header class="page-intro credentials-page__intro">
       <div>
-        <h1>Credentials</h1>
-        <p>Target authentication material. Stored secrets are reported only as configured or missing.</p>
+        <h1>{{ t('Credentials') }}</h1>
+        <p>{{ t('Target authentication material. Stored secrets are reported only as configured or missing.') }}</p>
       </div>
       <div class="credentials-page__intro-actions">
         <button
           class="credentials-page__icon-button"
           type="button"
           :disabled="credentialsQuery.isFetching.value"
-          aria-label="Refresh credentials"
-          title="Refresh credentials"
+          :aria-label="t('Refresh credentials')"
+          :title="t('Refresh credentials')"
           @click="credentialsQuery.refetch()"
         >
           <RefreshCw
@@ -214,7 +215,7 @@ async function deleteCredential() {
           <template #leading>
             <Plus />
           </template>
-          New credential
+          {{ t('New credential') }}
         </BaseButton>
       </div>
     </header>
@@ -222,15 +223,15 @@ async function deleteCredential() {
     <InlineNotice
       v-if="runtime.mode.value === 'reauth'"
       tone="warning"
-      title="Reconnect to manage credentials"
+      :title="t('Reconnect to manage credentials')"
     >
-      Your Control API URL is remembered, but the management token is intentionally held only in memory.
+      {{ t('Reauthentication explanation') }}
     </InlineNotice>
 
     <InlineNotice
       v-if="successMessage"
       tone="success"
-      title="Catalog updated"
+      :title="t('Catalog updated')"
     >
       {{ successMessage }}
     </InlineNotice>
@@ -238,7 +239,7 @@ async function deleteCredential() {
     <InlineNotice
       v-if="operationError && editorMode === null"
       tone="danger"
-      title="Credential action failed"
+      :title="t('Credential action failed')"
     >
       {{ operationError }}
     </InlineNotice>
@@ -251,17 +252,17 @@ async function deleteCredential() {
               :size="17"
               aria-hidden="true"
             />
-            <span class="sr-only">Search credentials</span>
+            <span class="sr-only">{{ t('Search credentials') }}</span>
             <input
               v-model="search"
               type="search"
-              placeholder="Search name or username"
+              :placeholder="t('Search name or username')"
               autocomplete="off"
             >
             <button
               v-if="search"
               type="button"
-              aria-label="Clear search"
+              :aria-label="t('Clear search')"
               @click="search = ''"
             >
               <X
@@ -290,7 +291,7 @@ async function deleteCredential() {
           v-else-if="credentialsQuery.isError.value && credentials.length === 0"
           class="credentials-list__error"
           tone="danger"
-          title="Credentials could not be loaded"
+          :title="t('Credentials could not be loaded')"
         >
           {{ queryError }}
           <template #actions>
@@ -298,15 +299,15 @@ async function deleteCredential() {
               variant="secondary"
               @click="credentialsQuery.refetch()"
             >
-              Retry
+              {{ t('Retry') }}
             </BaseButton>
           </template>
         </InlineNotice>
 
         <EmptyState
           v-else-if="credentials.length === 0"
-          title="No credentials yet"
-          description="Create a credential to let SSH assets authenticate to a target."
+          :title="t('No credentials yet')"
+          :description="t('Create a credential to let SSH assets authenticate to a target.')"
           :icon="KeyRound"
           compact
         >
@@ -315,15 +316,15 @@ async function deleteCredential() {
               variant="primary"
               @click="openCreate"
             >
-              Create credential
+              {{ t('Create credential') }}
             </BaseButton>
           </template>
         </EmptyState>
 
         <EmptyState
           v-else-if="filteredCredentials.length === 0"
-          title="No matching credentials"
-          description="Try another name or username."
+          :title="t('No matching credentials')"
+          :description="t('Try another name or username.')"
           :icon="Search"
           compact
         >
@@ -332,7 +333,7 @@ async function deleteCredential() {
               variant="secondary"
               @click="search = ''"
             >
-              Clear search
+              {{ t('Clear search') }}
             </BaseButton>
           </template>
         </EmptyState>
@@ -417,42 +418,38 @@ async function deleteCredential() {
               <p>{{ authLabel(selectedCredential.authType) }} for <strong>{{ selectedCredential.username }}</strong></p>
             </div>
             <StatusBadge
-              :label="hasConfiguredSecret(selectedCredential) ? 'Ready' : 'Incomplete'"
+              :label="t(hasConfiguredSecret(selectedCredential) ? 'Ready' : 'Incomplete')"
               :tone="hasConfiguredSecret(selectedCredential) ? 'success' : 'warning'"
             />
           </header>
 
           <InlineNotice
-            v-if="selectedManagedSource"
+            v-if="selectedConfigManaged"
             tone="warning"
-            title="Declarative credential"
+            :title="t('Managed by hop.yaml')"
           >
-            Source <strong>{{ selectedManagedSource }}</strong> owns this resource. Edit the manifest to change or remove it.
+            {{ t('Config credential read-only explanation') }}
           </InlineNotice>
 
           <dl class="credentials-detail__facts">
             <div>
-              <dt>Username</dt>
+              <dt>{{ t('Username') }}</dt>
               <dd>{{ selectedCredential.username }}</dd>
             </div>
             <div>
-              <dt>Authentication</dt>
+              <dt>{{ t('Authentication') }}</dt>
               <dd>{{ authLabel(selectedCredential.authType) }}</dd>
             </div>
             <div>
-              <dt>Credential ID</dt>
+              <dt>{{ t('Credential ID') }}</dt>
               <dd class="mono">
                 {{ selectedCredential.id }}
               </dd>
             </div>
             <div>
-              <dt>Ownership</dt>
+              <dt>{{ t('Ownership') }}</dt>
               <dd>
-                {{ selectedManagedSource
-                  ? `Source · ${selectedManagedSource}`
-                  : runtime.capabilities.value?.ownership
-                    ? 'Local Catalog'
-                    : 'Not exposed by API' }}
+                {{ t(selectedConfigManaged ? 'Configuration file ownership' : 'Panel / local ownership') }}
               </dd>
             </div>
           </dl>
@@ -463,65 +460,63 @@ async function deleteCredential() {
           >
             <div>
               <h3 id="credential-secret-status">
-                Secret status
+                {{ t('Secret status') }}
               </h3>
-              <p>Values are intentionally unavailable after write.</p>
+              <p>{{ t('Values are intentionally unavailable after write.') }}</p>
             </div>
             <ul>
               <li>
-                <span>Password</span>
+                <span>{{ t('Password') }}</span>
                 <StatusBadge
-                  :label="selectedCredential.password === 'configured' ? 'Configured' : 'Not used'"
+                  :label="t(selectedCredential.password === 'configured' ? 'Configured' : 'Not used status')"
                   :tone="selectedCredential.password === 'configured' ? 'success' : 'neutral'"
                 />
               </li>
               <li>
-                <span>Private key</span>
+                <span>{{ t('Private key') }}</span>
                 <StatusBadge
-                  :label="selectedCredential.privateKey === 'configured' ? 'Configured' : 'Not used'"
+                  :label="t(selectedCredential.privateKey === 'configured' ? 'Configured' : 'Not used status')"
                   :tone="selectedCredential.privateKey === 'configured' ? 'success' : 'neutral'"
                 />
               </li>
               <li>
                 <span>Passphrase</span>
                 <StatusBadge
-                  :label="selectedCredential.passphrase === 'configured' ? 'Configured' : 'Not used'"
+                  :label="t(selectedCredential.passphrase === 'configured' ? 'Configured' : 'Not used status')"
                   :tone="selectedCredential.passphrase === 'configured' ? 'success' : 'neutral'"
                 />
               </li>
             </ul>
           </section>
 
-          <footer class="credentials-detail__actions">
+          <footer v-if="!selectedConfigManaged" class="credentials-detail__actions">
             <BaseButton
               variant="secondary"
-              :disabled="Boolean(selectedManagedSource) || !runtime.ready.value"
-              :title="selectedManagedSource ? 'Edit this credential in its configuration source.' : undefined"
+              :disabled="!runtime.ready.value"
               @click="openRotate"
             >
               <template #leading>
                 <RotateCw />
               </template>
-              Rotate secret
+              {{ t('Rotate secret') }}
             </BaseButton>
             <BaseButton
               variant="quiet"
-              :disabled="Boolean(selectedManagedSource) || !runtime.ready.value"
-              :title="selectedManagedSource ? 'Edit this credential in its configuration source.' : undefined"
+              :disabled="!runtime.ready.value"
               @click="deleteOpen = true"
             >
               <template #leading>
                 <Trash2 />
               </template>
-              Delete
+              {{ t('Delete') }}
             </BaseButton>
           </footer>
         </template>
 
         <EmptyState
           v-else
-          title="Select a credential"
-          description="Choose a row to inspect its non-secret metadata."
+          :title="t('Select a credential')"
+          :description="t('Choose a row to inspect its non-secret metadata.')"
           :icon="CircleDotDashed"
           compact
         />
@@ -530,11 +525,11 @@ async function deleteCredential() {
 
     <ConfirmDialog
       v-model:open="deleteOpen"
-      title="Delete credential?"
+      :title="t('Delete credential?')"
       :description="selectedCredential
         ? `${selectedCredential.name} will be removed. Assets that still reference it can make this request fail.`
         : 'This credential will be removed.'"
-      confirm-label="Delete credential"
+      :confirm-label="t('Delete credential')"
       :busy="deleteMutation.isPending.value"
       @confirm="deleteCredential"
     />

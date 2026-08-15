@@ -3,11 +3,8 @@ import {
   type AccessKey,
   type ApplySummary,
   type Asset,
-  type CatalogStatus,
-  type ConfigSourceStatus,
   type Credential,
   type HopApi,
-  type ReloadResult,
   type RequestOptions,
   type Session,
   type TerminateSessionResult,
@@ -22,8 +19,6 @@ import {
   mapApplySummary,
   mapAsset,
   mapAssetInput,
-  mapCatalogStatus,
-  mapConfigSource,
   mapCredential,
   mapCredentialInput,
   mapDiffInput,
@@ -35,10 +30,7 @@ import type {
   WireAccessKey,
   WireApplySummary,
   WireAsset,
-  WireCatalogStatus,
-  WireConfigSourceStatus,
   WireCredential,
-  WireReloadResponse,
   WireRevisionResponse,
   WireSession,
   WireStatusResponse,
@@ -270,21 +262,6 @@ export function createFetchHopApi(options: FetchHopApiOptions): HopApi {
       return { id: response.id, terminated: response.terminated }
     },
 
-    async listConfigSources(requestOptions): Promise<ConfigSourceStatus[]> {
-      const response = await request<WireConfigSourceStatus[]>('/config/sources', {
-        ...signalOptions(requestOptions),
-      })
-      return response.map(mapConfigSource)
-    },
-
-    async getConfigStatus(requestOptions): Promise<CatalogStatus> {
-      return mapCatalogStatus(
-        await request<WireCatalogStatus>('/config/status', {
-          ...signalOptions(requestOptions),
-        }),
-      )
-    },
-
     async validateManifest(input, requestOptions): Promise<ValidationResult> {
       return request<WireValidationResponse>('/config/validate', {
         method: 'POST',
@@ -313,12 +290,5 @@ export function createFetchHopApi(options: FetchHopApiOptions): HopApi {
       )
     },
 
-    async reloadConfig(requestOptions): Promise<ReloadResult> {
-      const response = await request<WireReloadResponse>('/config/reload', {
-        method: 'POST',
-        ...signalOptions(requestOptions),
-      })
-      return { applied: response.applied.map(mapApplySummary) }
-    },
   }
 }

@@ -24,7 +24,7 @@ function resolveRemoteApi(endpoint: string, token: string): HopApi {
 
 function resolveApi(mode: ConnectionMode, endpoint: string, token: string): HopApi | null {
   if (mode === 'demo') return demoApi
-  if (mode === 'live' && endpoint !== '' && token !== '') return resolveRemoteApi(endpoint, token)
+  if (mode === 'live' && token !== '') return resolveRemoteApi(endpoint, token)
   return null
 }
 

@@ -16,6 +16,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { BaseButton, ConfirmDialog, EmptyState, InlineNotice, StatusBadge } from '@/components/ui'
 import type { Session } from '@/domain'
+import { useI18n } from '@/i18n'
 import { useSessionsQuery, useTerminateSessionMutation } from '@/queries'
 import { formatDuration, formatRelativeTime, formatTimestamp, shortFingerprint } from '@/utils/format'
 
@@ -26,6 +27,7 @@ const route = useRoute()
 const router = useRouter()
 const sessionsQuery = useSessionsQuery()
 const terminateMutation = useTerminateSessionMutation()
+const { t } = useI18n()
 
 const view = ref<SessionView>('recent')
 const terminateOpen = ref(false)
@@ -64,10 +66,10 @@ function selectView(next: SessionView) {
 }
 
 function statusLabel(status: string) {
-  if (status === 'started') return 'Active'
-  if (status === 'ok') return 'Completed'
-  if (status === 'terminated') return 'Terminated'
-  if (status === 'failed') return 'Failed'
+  if (status === 'started') return t('Active')
+  if (status === 'ok') return t('Completed')
+  if (status === 'terminated') return t('Terminated')
+  if (status === 'failed') return t('Failed')
   return status
 }
 
@@ -80,22 +82,22 @@ function statusTone(status: string): 'success' | 'warning' | 'danger' | 'neutral
 
 function modeLabel(mode: string) {
   const labels: Record<string, string> = {
-    direct: 'Direct SSH',
-    exec: 'Remote command',
+    direct: t('Direct SSH'),
+    exec: t('Remote command'),
     sftp: 'SFTP',
-    tui: 'TUI',
-    'tui-connect': 'TUI connect',
-    'tcp-forward': 'TCP forward',
+    tui: t('TUI'),
+    'tui-connect': t('TUI connect'),
+    'tcp-forward': t('TCP forward'),
   }
   return labels[mode] ?? mode
 }
 
 function targetLabel(session: Session) {
-  return session.assetName ?? session.targetHost ?? 'Unknown target'
+  return session.assetName ?? session.targetHost ?? t('Unknown target')
 }
 
 function targetAddress(session: Session) {
-  if (session.targetHost === null) return 'Not recorded'
+  if (session.targetHost === null) return t('Not recorded')
   return session.targetPort === null
     ? session.targetHost
     : `${session.targetHost}:${session.targetPort}`
@@ -117,21 +119,20 @@ async function confirmTerminate() {
     notice.value = result.terminated
       ? {
           tone: 'success',
-          title: 'Termination signal sent',
-          message: `${targetLabel(session)} was marked terminated and its active transport was signalled.`,
+          title: t('Termination signal sent'),
+          message: t('{target} was marked terminated and its active transport was signalled.', { target: targetLabel(session) }),
         }
       : {
           tone: 'warning',
-          title: 'Session is no longer active',
-          message:
-            'Hop kept the recent session record, but no active transport was registered. It may have ended before this request arrived.',
+          title: t('Session is no longer active'),
+          message: t('Session no longer active explanation'),
         }
   } catch (error) {
     terminateOpen.value = false
     notice.value = {
       tone: 'danger',
-      title: 'Session could not be terminated',
-      message: errorMessage(error) || 'Check the instance connection and try again.',
+      title: t('Session could not be terminated'),
+      message: errorMessage(error) || t('Check the instance connection and try again.'),
     }
   }
 }
@@ -141,15 +142,15 @@ async function confirmTerminate() {
   <section class="sessions-page page-stack" aria-labelledby="sessions-title">
     <header class="page-intro sessions-intro">
       <div>
-        <h1 id="sessions-title">Sessions</h1>
-        <p>Recent connection records and explicit control for sessions still marked active.</p>
+        <h1 id="sessions-title">{{ t('Sessions') }}</h1>
+        <p>{{ t('Sessions description') }}</p>
       </div>
       <button
         class="icon-button"
         type="button"
         :disabled="sessionsQuery.isFetching.value"
-        aria-label="Refresh sessions"
-        title="Refresh sessions"
+        :aria-label="t('Refresh sessions')"
+        :title="t('Refresh sessions')"
         @click="sessionsQuery.refetch()"
       >
         <RefreshCw
@@ -163,11 +164,11 @@ async function confirmTerminate() {
     <InlineNotice
       v-if="sessionsQuery.isError.value && sessions.length > 0"
       tone="warning"
-      title="Showing the last session response"
+      :title="t('Showing the last session response')"
     >
       {{ queryError }}
       <template #actions>
-        <BaseButton variant="secondary" @click="sessionsQuery.refetch()">Retry</BaseButton>
+        <BaseButton variant="secondary" @click="sessionsQuery.refetch()">{{ t('Retry') }}</BaseButton>
       </template>
     </InlineNotice>
 
@@ -179,21 +180,21 @@ async function confirmTerminate() {
       {{ notice.message }}
     </InlineNotice>
 
-    <section class="session-ledger panel" aria-label="Session summary">
+    <section class="session-ledger panel" :aria-label="t('Session summary')">
       <div class="ledger-lead">
         <span class="ledger-mark" aria-hidden="true"><MonitorUp :size="21" /></span>
         <div>
-          <strong>{{ sessionsQuery.isPending.value ? 'Reading session ledger…' : `${sessions.length} recent records` }}</strong>
-          <small>The Control API returns at most the latest 100 sessions.</small>
+          <strong>{{ sessionsQuery.isPending.value ? t('Reading session ledger…') : t('{count} recent records', { count: sessions.length }) }}</strong>
+          <small>{{ t('The Control API returns at most the latest 100 sessions.') }}</small>
         </div>
       </div>
       <dl>
         <div>
-          <dt>Started status</dt>
+          <dt>{{ t('Started status') }}</dt>
           <dd class="tabular accent-value">{{ activeSessions.length }}</dd>
         </div>
         <div>
-          <dt>Finished records</dt>
+          <dt>{{ t('Finished records') }}</dt>
           <dd class="tabular">{{ sessions.length - activeSessions.length }}</dd>
         </div>
       </dl>
@@ -205,14 +206,14 @@ async function confirmTerminate() {
     >
       <div class="session-list panel">
         <header class="session-toolbar">
-          <div class="view-switch" aria-label="Session list view">
+          <div class="view-switch" :aria-label="t('Session list view')">
             <button
               type="button"
               :class="{ active: view === 'recent' }"
               :aria-pressed="view === 'recent'"
               @click="selectView('recent')"
             >
-              Recent <span class="tabular">{{ sessions.length }}</span>
+              {{ t('Recent') }} <span class="tabular">{{ sessions.length }}</span>
             </button>
             <button
               type="button"
@@ -220,16 +221,16 @@ async function confirmTerminate() {
               :aria-pressed="view === 'active'"
               @click="selectView('active')"
             >
-              Active <span class="tabular">{{ activeSessions.length }}</span>
+              {{ t('Active') }} <span class="tabular">{{ activeSessions.length }}</span>
             </button>
           </div>
-          <span class="toolbar-note">Status is recorded by Hop, not inferred by the panel.</span>
+          <span class="toolbar-note">{{ t('Status is recorded by Hop, not inferred by the panel.') }}</span>
         </header>
 
         <div
           v-if="sessionsQuery.isPending.value"
           class="loading-rows"
-          aria-label="Loading sessions"
+          :aria-label="t('Loading sessions')"
           aria-busy="true"
         >
           <span v-for="index in 5" :key="index" />
@@ -239,42 +240,42 @@ async function confirmTerminate() {
           v-else-if="sessionsQuery.isError.value && sessions.length === 0"
           class="query-error"
           tone="danger"
-          title="Sessions could not be loaded"
+          :title="t('Sessions could not be loaded')"
         >
-          {{ queryError || 'Check the instance connection and try again.' }}
+          {{ queryError || t('Check the instance connection and try again.') }}
           <template #actions>
-            <BaseButton variant="secondary" @click="sessionsQuery.refetch()">Retry</BaseButton>
+            <BaseButton variant="secondary" @click="sessionsQuery.refetch()">{{ t('Retry') }}</BaseButton>
           </template>
         </InlineNotice>
 
         <EmptyState
           v-else-if="sessions.length === 0"
-          title="No session records"
-          description="Connections will appear here after an Access Key reaches Hop."
+          :title="t('No session records')"
+          :description="t('Connections will appear here after an Access Key reaches Hop.')"
           :icon="Clock3"
           compact
         />
 
         <EmptyState
           v-else-if="visibleSessions.length === 0"
-          title="No active session records"
-          description="The recent ledger contains only completed, failed, or terminated sessions."
+          :title="t('No active session records')"
+          :description="t('The recent ledger contains only completed, failed, or terminated sessions.')"
           :icon="CircleCheck"
           compact
         >
           <template #actions>
-            <BaseButton variant="secondary" @click="selectView('recent')">Show recent</BaseButton>
+            <BaseButton variant="secondary" @click="selectView('recent')">{{ t('Show recent') }}</BaseButton>
           </template>
         </EmptyState>
 
-        <div v-else class="session-table" role="table" aria-label="Recent Hop sessions">
+        <div v-else class="session-table" role="table" :aria-label="t('Recent Hop sessions')">
           <div class="session-head" role="row">
-            <span role="columnheader">Started</span>
-            <span role="columnheader">Target</span>
-            <span role="columnheader">Access Key</span>
-            <span role="columnheader">Mode</span>
-            <span role="columnheader">Duration</span>
-            <span role="columnheader">Status</span>
+            <span role="columnheader">{{ t('Started') }}</span>
+            <span role="columnheader">{{ t('Target') }}</span>
+            <span role="columnheader">{{ t('Access Key') }}</span>
+            <span role="columnheader">{{ t('Mode') }}</span>
+            <span role="columnheader">{{ t('Duration') }}</span>
+            <span role="columnheader">{{ t('Status') }}</span>
           </div>
           <button
             v-for="session in visibleSessions"
@@ -301,7 +302,7 @@ async function confirmTerminate() {
               </span>
             </span>
             <span class="row-key" role="cell">
-              <strong>{{ session.keyName ?? 'Unnamed key' }}</strong>
+              <strong>{{ session.keyName ?? t('Unnamed key') }}</strong>
               <small class="mono">{{ shortFingerprint(session.keyFingerprint) }}</small>
             </span>
             <span role="cell">{{ modeLabel(session.mode) }}</span>
@@ -313,18 +314,18 @@ async function confirmTerminate() {
         </div>
 
         <footer class="session-list-footer">
-          <span>{{ visibleSessions.length }} shown</span>
-          <span v-if="view === 'active'">Only records with <code>started</code> status</span>
+          <span>{{ t('{count} shown', { count: visibleSessions.length }) }}</span>
+          <span v-if="view === 'active'">{{ t('Only records with started status') }}</span>
         </footer>
       </div>
 
-      <aside class="session-detail panel" aria-label="Session details">
+      <aside class="session-detail panel" :aria-label="t('Session details')">
         <template v-if="selectedSession">
           <header class="detail-heading">
             <button
               class="mobile-back"
               type="button"
-              aria-label="Back to sessions"
+              :aria-label="t('Back to sessions')"
               @click="setSelection(null)"
             >
               <ArrowLeft :size="19" aria-hidden="true" />
@@ -337,7 +338,7 @@ async function confirmTerminate() {
             <button
               class="detail-close"
               type="button"
-              aria-label="Close session details"
+              :aria-label="t('Close session details')"
               @click="setSelection(null)"
             >
               <X :size="18" aria-hidden="true" />
@@ -354,31 +355,31 @@ async function confirmTerminate() {
 
           <dl class="detail-facts">
             <div>
-              <dt>Started</dt>
+              <dt>{{ t('Started') }}</dt>
               <dd>{{ formatTimestamp(selectedSession.startedAt) }}</dd>
             </div>
             <div>
-              <dt>Ended</dt>
-              <dd>{{ selectedSession.endedAt ? formatTimestamp(selectedSession.endedAt) : 'Still open' }}</dd>
+              <dt>{{ t('Ended') }}</dt>
+              <dd>{{ selectedSession.endedAt ? formatTimestamp(selectedSession.endedAt) : t('Still open') }}</dd>
             </div>
             <div>
-              <dt>Target</dt>
+              <dt>{{ t('Target') }}</dt>
               <dd class="mono">{{ targetAddress(selectedSession) }}</dd>
             </div>
             <div>
-              <dt>Client IP</dt>
-              <dd class="mono">{{ selectedSession.clientIp ?? 'Not recorded' }}</dd>
+              <dt>{{ t('Client IP') }}</dt>
+              <dd class="mono">{{ selectedSession.clientIp ?? t('Not recorded') }}</dd>
             </div>
             <div>
-              <dt>Access Key</dt>
-              <dd>{{ selectedSession.keyName ?? 'Unnamed key' }}</dd>
+              <dt>{{ t('Access Key') }}</dt>
+              <dd>{{ selectedSession.keyName ?? t('Unnamed key') }}</dd>
             </div>
             <div>
-              <dt>Fingerprint</dt>
+              <dt>{{ t('Fingerprint') }}</dt>
               <dd class="mono wrap-value">{{ selectedSession.keyFingerprint }}</dd>
             </div>
             <div class="wide-fact">
-              <dt>Session ID</dt>
+              <dt>{{ t('Session ID') }}</dt>
               <dd class="mono wrap-value">{{ selectedSession.id }}</dd>
             </div>
           </dl>
@@ -386,7 +387,7 @@ async function confirmTerminate() {
           <InlineNotice
             v-if="selectedSession.error"
             :tone="selectedSession.status === 'failed' ? 'danger' : 'warning'"
-            title="Recorded session error"
+            :title="t('Recorded session error')"
           >
             {{ selectedSession.error }}
           </InlineNotice>
@@ -394,9 +395,9 @@ async function confirmTerminate() {
           <InlineNotice
             v-else-if="selectedSession.status === 'started'"
             tone="info"
-            title="Started is a Catalog status"
+            :title="t('Started is a Catalog status')"
           >
-            Hop will attempt to signal the active in-memory transport. A stale record can return “not active”.
+            {{ t('Started status explanation') }}
           </InlineNotice>
 
           <footer class="detail-actions">
@@ -406,16 +407,16 @@ async function confirmTerminate() {
               @click="terminateOpen = true"
             >
               <template #leading><Unplug /></template>
-              Terminate session
+              {{ t('Terminate session') }}
             </BaseButton>
-            <p v-if="selectedSession.status !== 'started'">Only sessions with started status can be terminated.</p>
+            <p v-if="selectedSession.status !== 'started'">{{ t('Only sessions with started status can be terminated.') }}</p>
           </footer>
         </template>
 
         <EmptyState
           v-else
-          title="Select a session"
-          description="Choose a row to inspect its target, Access Key, duration, and recorded outcome."
+          :title="t('Select a session')"
+          :description="t('Choose a row to inspect its target, Access Key, duration, and recorded outcome.')"
           :icon="MonitorUp"
           compact
         />
@@ -424,11 +425,11 @@ async function confirmTerminate() {
 
     <ConfirmDialog
       v-model:open="terminateOpen"
-      title="Terminate this session?"
+      :title="t('Terminate this session?')"
       :description="selectedSession
-        ? `Hop will signal the active transport for ${targetLabel(selectedSession)}. The recent session record will remain available.`
-        : 'Hop will signal the active transport.'"
-      confirm-label="Terminate session"
+        ? t('Terminate session description', { target: targetLabel(selectedSession) })
+        : t('Hop will signal the active transport.')"
+      :confirm-label="t('Terminate session')"
       :busy="terminateMutation.isPending.value"
       @confirm="confirmTerminate"
     />

@@ -5,13 +5,14 @@ import { expectNoPageOverflow, openDemo } from './helpers'
 test.describe('Hop demo workspace', () => {
   test.beforeEach(async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'Desktop workflow coverage')
-    await openDemo(page)
+    await page.setViewportSize({ width: 1440, height: 900 })
   })
 
   test('starts in an explicit Demo workspace and exposes all six routes', async ({ page }) => {
+    await openDemo(page)
     await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible()
     await expect(page.getByRole('button', { name: /Demo data.*Synthetic workspace/i })).toBeVisible()
-    await expect(page.getByText(/Demo workspace.*synthetic examples/i)).toBeVisible()
+    await expect(page.getByText(/synthetic examples, not live measurements/i)).toBeVisible()
 
     const navigation = page.getByRole('complementary', { name: 'Primary navigation' })
     const routes = [
@@ -20,7 +21,7 @@ test.describe('Hop demo workspace', () => {
       ['Credentials', '/credentials'],
       ['Access', '/access'],
       ['Sessions', '/sessions'],
-      ['Configuration', '/configuration'],
+      ['Settings', '/configuration'],
     ] as const
 
     for (const [label, path] of routes) {
@@ -33,7 +34,7 @@ test.describe('Hop demo workspace', () => {
   })
 
   test('filters assets and opens a deep-linked master-detail inspector', async ({ page }) => {
-    await page.goto('/assets')
+    await openDemo(page, '/assets')
 
     const inventory = page.getByRole('table', { name: 'Catalog assets' })
     const search = page.getByRole('searchbox', { name: 'Search assets' })
@@ -49,11 +50,11 @@ test.describe('Hop demo workspace', () => {
     const inspector = page.getByRole('complementary', { name: 'Selected asset' })
     await expect(inspector.getByRole('heading', { name: 'router-ui' })).toBeVisible()
     await expect(inspector).toContainText('192.168.50.1:443')
-    await expect(inspector).toContainText('Local')
+    await expect(inspector).toContainText('Panel / local ownership')
   })
 
   test('creates a local TCP asset without a real backend', async ({ page }) => {
-    await page.goto('/assets')
+    await openDemo(page, '/assets')
     await page.getByRole('button', { name: 'New asset', exact: true }).click()
 
     const editor = page.getByRole('dialog')
@@ -73,7 +74,7 @@ test.describe('Hop demo workspace', () => {
   })
 
   test('keeps credential secrets write-only and access keys public-only', async ({ page }) => {
-    await page.goto('/credentials')
+    await openDemo(page, '/credentials')
     const credentials = page.getByRole('list', { name: 'Credentials' })
     await expect(credentials).toBeVisible()
     await expect(credentials.getByRole('button', { name: /homelab-root/i })).toBeVisible()
@@ -85,7 +86,7 @@ test.describe('Hop demo workspace', () => {
     await expect(credentialDetail.getByRole('heading', { name: 'New credential' })).toBeVisible()
     await expect(credentialDetail).toContainText('are never displayed again')
 
-    await page.goto('/access')
+    await openDemo(page, '/access')
     const accessKeys = page.getByRole('list', { name: 'Access keys' })
     await expect(accessKeys).toBeVisible()
     await expect(accessKeys.getByRole('button', { name: /oslo-laptop/i })).toBeVisible()
@@ -99,7 +100,7 @@ test.describe('Hop demo workspace', () => {
   })
 
   test('terminates an active Demo session through an explicit confirmation', async ({ page }) => {
-    await page.goto('/sessions')
+    await openDemo(page, '/sessions')
     await page.getByRole('button', { name: /Active 1/ }).click()
 
     const activeRow = page.getByRole('row', { name: /homelab-nas.*oslo-laptop.*Active/i })
@@ -119,25 +120,26 @@ test.describe('Hop demo workspace', () => {
     await expect(page.getByRole('button', { name: /Active 0/ })).toBeVisible()
   })
 
-  test('validates, previews, and applies a Demo manifest in order', async ({ page }) => {
-    await page.goto('/configuration')
-    const workspace = page.getByRole('main')
-    const manifest = workspace.getByRole('textbox', { name: /manifest (content|document)/i })
-    const source = workspace.getByRole('textbox', { name: /source id/i })
+  test('explains same-origin authentication and switches between English and Chinese', async ({ page }) => {
+    await openDemo(page, '/configuration')
+    const main = page.getByRole('main')
+    await expect(main.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible()
+    await expect(page.getByText(/Compose uses the panel Origin by default/i)).toBeVisible()
+    await expect(page.getByText(/Token.*localStorage/i)).toBeVisible()
 
-    await source.fill('e2e-panel')
-    await manifest.fill('api_version: hop/v1alpha1\nassets: {}\n')
-    await workspace.getByRole('button', { name: /validate manifest/i }).click()
-    await expect(workspace.getByText(/manifest (is valid|validated)|validation passed/i).first()).toBeVisible()
+    await page.getByRole('button', { name: '切换到中文' }).click()
+    await expect(main.getByRole('heading', { name: '设置', level: 1 })).toBeVisible()
+    await expect(page.getByText(/Compose 默认使用面板当前 Origin/)).toBeVisible()
 
-    await workspace.getByRole('button', { name: /(preview|show) diff|diff manifest/i }).click()
-    await expect(workspace.getByText(/diff (is ready|preview)|changes? to apply/i).first()).toBeVisible()
+    await page.getByRole('button', { name: 'Switch to English' }).click()
+    await expect(main.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible()
+  })
 
-    await workspace.getByRole('button', { name: /apply manifest/i }).click()
-    const confirmation = page.getByRole('dialog')
-    if (await confirmation.isVisible()) {
-      await confirmation.getByRole('button', { name: /apply manifest/i }).click()
-    }
-    await expect(workspace.getByText(/manifest applied|catalog updated|apply completed/i).first()).toBeVisible()
+  test('marks configuration-managed resources read-only before showing actions', async ({ page }) => {
+    await openDemo(page, '/assets?asset=asset-prod-gateway')
+    const inspector = page.getByRole('complementary', { name: 'Selected asset' })
+    await expect(inspector).toContainText('Managed by hop.yaml')
+    await expect(inspector.getByRole('button', { name: 'Edit asset' })).toHaveCount(0)
+    await expect(inspector.getByRole('button', { name: 'Remove asset' })).toHaveCount(0)
   })
 })

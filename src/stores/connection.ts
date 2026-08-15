@@ -6,6 +6,7 @@ interface ConnectionState {
   mode: ConnectionMode
   endpoint: string
   token: string
+  insecureToken: boolean
   version: string | null
   revision: number | null
   error: string | null
@@ -16,9 +17,10 @@ const endpointKey = 'hop.control-api-url'
 const savedEndpoint = window.sessionStorage.getItem(endpointKey) ?? ''
 
 const state = reactive<ConnectionState>({
-  mode: savedEndpoint ? 'reauth' : 'demo',
+  mode: 'reauth',
   endpoint: savedEndpoint,
   token: '',
+  insecureToken: false,
   version: null,
   revision: null,
   error: null,
@@ -29,7 +31,9 @@ const isDemo = computed(() => state.mode === 'demo')
 const isLive = computed(() => state.mode === 'live')
 
 function normalizeEndpoint(value: string) {
-  const url = new URL(value.trim())
+  const trimmed = value.trim()
+  if (trimmed === '') return ''
+  const url = new URL(trimmed)
   if (!['http:', 'https:'].includes(url.protocol)) {
     throw new Error('Use an http:// or https:// Control API URL.')
   }
@@ -45,9 +49,11 @@ async function connectToHop(endpoint: string, token: string) {
     const normalizedToken = token.trim()
     if (!normalizedToken) throw new Error('Enter the Bearer management token.')
 
-    const controlApiBase = normalizedEndpoint.endsWith('/api/v1')
-      ? normalizedEndpoint
-      : `${normalizedEndpoint}/api/v1`
+    const controlApiBase = normalizedEndpoint === ''
+      ? '/api/v1'
+      : normalizedEndpoint.endsWith('/api/v1')
+        ? normalizedEndpoint
+        : `${normalizedEndpoint}/api/v1`
     const response = await fetch(`${controlApiBase}/status`, {
       headers: { Authorization: `Bearer ${normalizedToken}` },
     })
@@ -68,10 +74,15 @@ async function connectToHop(endpoint: string, token: string) {
     }
     state.endpoint = normalizedEndpoint
     state.token = normalizedToken
+    state.insecureToken = normalizedToken === 'change-me'
     state.version = body.version
     state.revision = body.catalog_revision
     state.mode = 'live'
-    window.sessionStorage.setItem(endpointKey, normalizedEndpoint)
+    if (normalizedEndpoint === '') {
+      window.sessionStorage.removeItem(endpointKey)
+    } else {
+      window.sessionStorage.setItem(endpointKey, normalizedEndpoint)
+    }
   } catch (error) {
     state.error = error instanceof Error ? error.message : 'The instance could not be reached.'
     throw error
@@ -83,14 +94,16 @@ async function connectToHop(endpoint: string, token: string) {
 function useDemo() {
   state.mode = 'demo'
   state.token = ''
-  state.version = '0.2.0-demo'
+  state.insecureToken = false
+  state.version = '0.2.1-demo'
   state.revision = 128
   state.error = null
 }
 
 function requireReauthentication() {
-  state.mode = state.endpoint ? 'reauth' : 'demo'
+  state.mode = 'reauth'
   state.token = ''
+  state.insecureToken = false
   state.version = null
   state.revision = null
 }

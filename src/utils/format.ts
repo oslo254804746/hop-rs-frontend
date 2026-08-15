@@ -6,8 +6,8 @@ export function parseTimestamp(value: string | null): Date | null {
 }
 export function formatTimestamp(value: string | null): string {
   const date = parseTimestamp(value)
-  if (date === null) return 'Not recorded'
-  return new Intl.DateTimeFormat(undefined, {
+  if (date === null) return translate('Not recorded')
+  return new Intl.DateTimeFormat(getLocale(), {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -17,11 +17,11 @@ export function formatTimestamp(value: string | null): string {
 
 export function formatRelativeTime(value: string | null, now = new Date()): string {
   const date = parseTimestamp(value)
-  if (date === null) return 'Unknown'
+  if (date === null) return translate('Unknown')
 
   const seconds = Math.round((date.getTime() - now.getTime()) / 1000)
   const absoluteSeconds = Math.abs(seconds)
-  const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
+  const formatter = new Intl.RelativeTimeFormat(getLocale(), { numeric: 'auto' })
   if (absoluteSeconds < 60) return formatter.format(seconds, 'second')
   if (absoluteSeconds < 3600) return formatter.format(Math.round(seconds / 60), 'minute')
   if (absoluteSeconds < 86_400) return formatter.format(Math.round(seconds / 3600), 'hour')
@@ -49,3 +49,4 @@ export function shortFingerprint(value: string): string {
   if (value.length <= 24) return value
   return `${value.slice(0, 12)}…${value.slice(-8)}`
 }
+import { getLocale, translate } from '@/i18n'

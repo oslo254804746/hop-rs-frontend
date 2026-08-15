@@ -5,13 +5,10 @@ import type {
   ApplySummary,
   Asset,
   AssetWriteInput,
-  CatalogStatus,
-  ConfigSourceStatus,
   Credential,
   CredentialWriteInput,
   DiffManifestInput,
   InstanceStatus,
-  ReloadResult,
   Session,
   TerminateSessionResult,
   ValidateManifestInput,
@@ -28,7 +25,7 @@ export interface HopApiCapabilities {
 }
 
 export const REMOTE_HOP_API_CAPABILITIES: Readonly<HopApiCapabilities> = Object.freeze({
-  ownership: false,
+  ownership: true,
   assetHealth: false,
 })
 
@@ -79,13 +76,10 @@ export interface HopApi {
   listSessions(options?: RequestOptions): Promise<Session[]>
   terminateSession(id: string, options?: RequestOptions): Promise<TerminateSessionResult>
 
-  listConfigSources(options?: RequestOptions): Promise<ConfigSourceStatus[]>
-  getConfigStatus(options?: RequestOptions): Promise<CatalogStatus>
   validateManifest(
     input: ValidateManifestInput,
     options?: RequestOptions,
   ): Promise<ValidationResult>
   diffManifest(input: DiffManifestInput, options?: RequestOptions): Promise<ApplySummary>
   applyManifest(input: ApplyManifestInput, options?: RequestOptions): Promise<ApplySummary>
-  reloadConfig(options?: RequestOptions): Promise<ReloadResult>
 }

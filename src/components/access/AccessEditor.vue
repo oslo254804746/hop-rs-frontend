@@ -4,6 +4,7 @@ import { computed, reactive, ref, watch } from 'vue'
 
 import { BaseButton, FormField, InlineNotice } from '@/components/ui'
 import type { AccessKey, AccessKeyCreateInput, Asset } from '@/domain'
+import { useI18n } from '@/i18n'
 
 type ScopeChoice = 'all' | 'restricted' | 'empty'
 
@@ -20,6 +21,7 @@ const emit = defineEmits<{
   create: [input: AccessKeyCreateInput]
   updateScope: [assetIds: string[] | null]
 }>()
+const { t } = useI18n()
 
 const form = reactive({
   name: '',
@@ -28,11 +30,7 @@ const form = reactive({
 const scopeChoice = ref<ScopeChoice>('all')
 const selectedAssetIds = ref<string[]>([])
 const fieldErrors = reactive<{ name?: string; publicKey?: string; assets?: string }>({})
-const managedSource = computed(() => {
-  const management = props.accessKey?.management
-  return management?.mode === 'declarative' ? management.sourceId : null
-})
-const isManaged = computed(() => managedSource.value !== null)
+const isManaged = computed(() => props.accessKey?.management?.mode === 'config')
 const isScopeEdit = computed(() => props.mode === 'scope')
 const sortedAssets = computed(() => [...props.assets].sort((left, right) => left.name.localeCompare(right.name)))
 
@@ -78,13 +76,13 @@ function resolvedAssetIds(): string[] | null {
 function validate() {
   clearErrors()
   if (!isScopeEdit.value && !form.name.trim()) {
-    fieldErrors.name = 'Give this access key a recognizable name.'
+    fieldErrors.name = t('Give this access key a recognizable name.')
   }
   if (!isScopeEdit.value && !form.publicKey.trim()) {
-    fieldErrors.publicKey = 'Paste an OpenSSH public key.'
+    fieldErrors.publicKey = t('Paste an OpenSSH public key.')
   }
   if (scopeChoice.value === 'restricted' && selectedAssetIds.value.length === 0) {
-    fieldErrors.assets = 'Select at least one asset, or choose “No assets”.'
+    fieldErrors.assets = t('Select at least one asset, or choose “No assets”.')
   }
   return Object.keys(fieldErrors).length === 0
 }
@@ -133,12 +131,12 @@ watch(
       </span>
       <div>
         <h2 :id="`access-editor-${props.mode}`">
-          {{ isScopeEdit ? 'Change asset access' : 'Add access key' }}
+          {{ isScopeEdit ? t('Change asset access') : t('Add access key') }}
         </h2>
         <p>
           {{ isScopeEdit
-            ? `Choose exactly what ${props.accessKey?.name ?? 'this key'} can reach.`
-            : 'Register an existing SSH public key and choose its initial Catalog scope.' }}
+            ? t('Choose exactly what {name} can reach.', { name: props.accessKey?.name ?? t('this key') })
+            : t('Register an existing SSH public key and choose its initial Catalog scope.') }}
         </p>
       </div>
     </header>
@@ -146,16 +144,15 @@ watch(
     <InlineNotice
       v-if="isManaged"
       tone="warning"
-      title="Managed by configuration"
+      :title="t('Managed by configuration')"
     >
-      Update this access key in source
-      <strong>{{ managedSource }}</strong> and reload the Catalog.
+      {{ t('Config access editor explanation') }}
     </InlineNotice>
 
     <InlineNotice
       v-if="props.error"
       tone="danger"
-      :title="isScopeEdit ? 'Access scope was not changed' : 'Access key was not added'"
+      :title="isScopeEdit ? t('Access scope was not changed') : t('Access key was not added')"
     >
       {{ props.error }}
     </InlineNotice>
@@ -167,7 +164,7 @@ watch(
     >
       <template v-if="!isScopeEdit">
         <FormField
-          label="Name"
+          :label="t('Name')"
           v-bind="fieldErrors.name ? { error: fieldErrors.name } : {}"
           required
         >
@@ -183,9 +180,9 @@ watch(
         </FormField>
 
         <FormField
-          label="OpenSSH public key"
+          :label="t('OpenSSH public key')"
           v-bind="fieldErrors.publicKey ? { error: fieldErrors.publicKey } : {}"
-          hint="Paste the complete ssh-ed25519, ecdsa, or rsa public-key line."
+          :hint="t('Paste the complete ssh-ed25519, ecdsa, or rsa public-key line.')"
           required
         >
           <template #default="{ controlProps }">
@@ -204,9 +201,9 @@ watch(
 
         <InlineNotice
           tone="info"
-          title="Public key only"
+          :title="t('Public key only')"
         >
-          Hop derives the fingerprint from this key. It does not generate or return a private key.
+          {{ t('Public key derivation explanation') }}
         </InlineNotice>
       </template>
 
@@ -214,7 +211,7 @@ watch(
         class="access-editor__scope"
         :disabled="props.busy || isManaged"
       >
-        <legend>Asset scope</legend>
+        <legend>{{ t('Asset scope') }}</legend>
 
         <button
           class="access-editor__scope-option"
@@ -229,8 +226,8 @@ watch(
             aria-hidden="true"
           ><Globe2 :size="18" /></span>
           <span>
-            <strong>All assets</strong>
-            <small>Includes assets added later.</small>
+            <strong>{{ t('All assets') }}</strong>
+            <small>{{ t('Includes assets added later.') }}</small>
           </span>
           <Check
             v-if="scopeChoice === 'all'"
@@ -252,8 +249,8 @@ watch(
             aria-hidden="true"
           ><ListChecks :size="18" /></span>
           <span>
-            <strong>Selected assets</strong>
-            <small>Only the checked targets below.</small>
+            <strong>{{ t('Selected assets') }}</strong>
+            <small>{{ t('Only the checked targets below.') }}</small>
           </span>
           <Check
             v-if="scopeChoice === 'restricted'"
@@ -275,8 +272,8 @@ watch(
             aria-hidden="true"
           ><Ban :size="18" /></span>
           <span>
-            <strong>No assets</strong>
-            <small>Keep the key registered but deny every target.</small>
+            <strong>{{ t('No assets') }}</strong>
+            <small>{{ t('Keep the key registered without target access.') }}</small>
           </span>
           <Check
             v-if="scopeChoice === 'empty'"
@@ -295,7 +292,7 @@ watch(
           v-if="sortedAssets.length === 0"
           class="access-editor__assets-empty"
         >
-          No assets are available. Choose “No assets” until the Catalog has a target.
+          {{ t('No assets are available. Choose “No assets” until the Catalog has a target.') }}
         </p>
         <label
           v-for="asset in sortedAssets"
@@ -328,7 +325,7 @@ watch(
           :size="17"
           aria-hidden="true"
         />
-        <span>Scope is enforced by the Catalog. An empty restricted set is an explicit deny-all state.</span>
+        <span>{{ t('Scope is enforced by the Catalog. An empty restricted set is an explicit deny-all state.') }}</span>
       </div>
 
       <footer class="access-editor__actions">
@@ -337,16 +334,16 @@ watch(
           :disabled="props.busy"
           @click="emit('cancel')"
         >
-          Cancel
+          {{ t('Cancel') }}
         </BaseButton>
         <BaseButton
           variant="primary"
           type="submit"
           :loading="props.busy"
           :disabled="isManaged"
-          :loading-label="isScopeEdit ? 'Saving asset access' : 'Adding access key'"
+          :loading-label="isScopeEdit ? t('Saving asset access') : t('Adding access key')"
         >
-          {{ isScopeEdit ? 'Save access' : 'Add public key' }}
+          {{ isScopeEdit ? t('Save access') : t('Add public key') }}
         </BaseButton>
       </footer>
     </form>

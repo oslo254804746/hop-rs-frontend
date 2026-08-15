@@ -7,6 +7,7 @@ import {
   CircleGauge,
   FlaskConical,
   KeyRound,
+  Languages,
   Layers3,
   Menu,
   MonitorUp,
@@ -19,34 +20,36 @@ import {
   X,
 } from '@lucide/vue'
 import { useQueryClient } from '@tanstack/vue-query'
-import { computed, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 
 import { useConnection } from '@/stores/connection'
 import { useTheme } from '@/stores/theme'
+import { useI18n } from '@/i18n'
 
 const route = useRoute()
 const queryClient = useQueryClient()
 const connection = useConnection()
 const theme = useTheme()
+const { locale, t, toggleLocale } = useI18n()
 
-const navItems = [
-  { name: 'overview', label: 'Overview', to: '/', icon: CircleGauge },
-  { name: 'assets', label: 'Assets', to: '/assets', icon: Server },
-  { name: 'credentials', label: 'Credentials', to: '/credentials', icon: KeyRound },
-  { name: 'access', label: 'Access', to: '/access', icon: ShieldCheck },
-  { name: 'sessions', label: 'Sessions', to: '/sessions', icon: MonitorUp },
-  { name: 'configuration', label: 'Configuration', to: '/configuration', icon: Settings2 },
-] as const
+const navItems = computed(() => [
+  { name: 'overview', label: t('Overview'), to: '/', icon: CircleGauge },
+  { name: 'assets', label: t('Assets'), to: '/assets', icon: Server },
+  { name: 'credentials', label: t('Credentials'), to: '/credentials', icon: KeyRound },
+  { name: 'access', label: t('Access'), to: '/access', icon: ShieldCheck },
+  { name: 'sessions', label: t('Sessions'), to: '/sessions', icon: MonitorUp },
+  { name: 'configuration', label: t('Settings'), to: '/configuration', icon: Settings2 },
+])
 
-const mobileItems = navItems.filter((item) =>
+const mobileItems = computed(() => navItems.value.filter((item) =>
   ['overview', 'assets', 'access', 'sessions'].includes(item.name),
-)
+))
 
-const pageTitle = computed(() => String(route.meta.title ?? 'Hop'))
+const pageTitle = computed(() => t(String(route.meta.title ?? 'Hop')))
 const connectionDialog = ref<HTMLDialogElement | null>(null)
 const mobileMenuOpen = ref(false)
-const endpoint = ref(connection.state.endpoint || 'http://127.0.0.1:8083')
+const endpoint = ref(connection.state.endpoint)
 const token = ref('')
 const submitError = ref('')
 
@@ -81,6 +84,12 @@ function switchToDemo() {
 function refresh() {
   void queryClient.invalidateQueries()
 }
+
+onMounted(async () => {
+  if (connection.state.mode !== 'reauth') return
+  await nextTick()
+  openConnection()
+})
 </script>
 
 <template>
@@ -117,20 +126,20 @@ function refresh() {
             aria-hidden="true"
           />
           <strong>
-            {{
+            {{ t(
               connection.state.mode === 'live'
                 ? 'Connected'
                 : connection.state.mode === 'reauth'
                   ? 'Authenticate'
                   : 'Demo data'
-            }}
+            ) }}
           </strong>
         </span>
         <span class="connection-detail">
-          {{ connection.state.mode === 'demo' ? 'Synthetic workspace' : connection.state.endpoint }}
+          {{ connection.state.mode === 'demo' ? t('Synthetic workspace') : connection.state.endpoint || t('This panel · same origin') }}
         </span>
         <span class="connection-version tabular">
-          {{ connection.state.version ?? (connection.state.mode === 'reauth' ? 'Token required' : 'v0.2 preview') }}
+          {{ connection.state.version ?? (connection.state.mode === 'reauth' ? t('Token required') : 'v0.2 preview') }}
         </span>
         <ChevronRight class="connection-arrow" :size="17" aria-hidden="true" />
       </button>
@@ -146,11 +155,11 @@ function refresh() {
           <span class="mode-badge" :class="`is-${connection.state.mode}`">
             <FlaskConical v-if="connection.state.mode === 'demo'" :size="15" aria-hidden="true" />
             <Cable v-else :size="15" aria-hidden="true" />
-            {{ connection.state.mode === 'demo' ? 'Demo workspace' : connection.state.mode === 'live' ? 'Connected' : 'Re-auth' }}
+            {{ t(connection.state.mode === 'demo' ? 'Demo workspace' : connection.state.mode === 'live' ? 'Connected' : 'Re-auth') }}
           </span>
           <button class="icon-action labeled-action" type="button" aria-label="Refresh data" @click="refresh">
             <RefreshCw :size="18" aria-hidden="true" />
-            <span>Refresh</span>
+            <span>{{ t('Refresh') }}</span>
           </button>
           <button
             class="icon-action labeled-action"
@@ -160,16 +169,29 @@ function refresh() {
           >
             <Sun v-if="theme.resolvedTheme.value === 'dark'" :size="18" aria-hidden="true" />
             <Moon v-else :size="18" aria-hidden="true" />
-            <span>{{ theme.resolvedTheme.value === 'dark' ? 'Light' : 'Dark' }}</span>
+            <span>{{ t(theme.resolvedTheme.value === 'dark' ? 'Light' : 'Dark') }}</span>
+          </button>
+          <button
+            class="icon-action labeled-action"
+            type="button"
+            :aria-label="locale === 'en' ? '切换到中文' : 'Switch to English'"
+            @click="toggleLocale"
+          >
+            <Languages :size="18" aria-hidden="true" />
+            <span>{{ locale === 'en' ? '中文' : 'EN' }}</span>
           </button>
           <button class="configure-action" type="button" @click="openConnection">
             <Settings2 :size="17" aria-hidden="true" />
-            Instance
+            {{ t('Instance') }}
           </button>
         </div>
       </header>
 
       <main id="main-content" class="main-content">
+        <div v-if="connection.state.insecureToken" class="token-warning" role="alert">
+          <ShieldCheck :size="18" aria-hidden="true" />
+          <span><strong>{{ t('Change the webpage management Token.') }}</strong> {{ t('The connected instance still uses the insecure change-me placeholder.') }}</span>
+        </div>
         <slot />
       </main>
     </section>
@@ -181,26 +203,26 @@ function refresh() {
       </RouterLink>
       <button class="dock-link" type="button" @click="mobileMenuOpen = true">
         <Menu :size="20" aria-hidden="true" />
-        <span>More</span>
+        <span>{{ t('More') }}</span>
       </button>
     </nav>
 
     <div v-if="mobileMenuOpen" class="mobile-sheet-layer" @click.self="mobileMenuOpen = false">
       <section class="mobile-sheet" aria-label="More navigation">
         <header>
-          <strong>More</strong>
+          <strong>{{ t('More') }}</strong>
           <button class="icon-action" type="button" aria-label="Close menu" @click="mobileMenuOpen = false">
             <X :size="19" aria-hidden="true" />
           </button>
         </header>
         <RouterLink class="sheet-link" to="/credentials" @click="mobileMenuOpen = false">
-          <KeyRound :size="19" aria-hidden="true" /> Credentials
+          <KeyRound :size="19" aria-hidden="true" /> {{ t('Credentials') }}
         </RouterLink>
         <RouterLink class="sheet-link" to="/configuration" @click="mobileMenuOpen = false">
-          <Settings2 :size="19" aria-hidden="true" /> Configuration
+          <Settings2 :size="19" aria-hidden="true" /> {{ t('Settings') }}
         </RouterLink>
         <button class="sheet-link" type="button" @click="mobileMenuOpen = false; openConnection()">
-          <Cable :size="19" aria-hidden="true" /> Instance connection
+          <Cable :size="19" aria-hidden="true" /> {{ t('Instance connection') }}
         </button>
       </section>
     </div>
@@ -209,8 +231,8 @@ function refresh() {
       <form class="connection-form" @submit.prevent="submitConnection">
         <header>
           <div>
-            <h2>Connect an instance</h2>
-            <p>Use one Hop Control API endpoint and its Bearer management token.</p>
+            <h2>{{ t('Connect to Hop') }}</h2>
+            <p>{{ t('Enter the webpage management Token from hop.yaml.') }}</p>
           </div>
           <button class="icon-action" type="button" aria-label="Close connection settings" @click="closeConnection">
             <X :size="19" aria-hidden="true" />
@@ -218,16 +240,23 @@ function refresh() {
         </header>
 
         <label class="field">
-          <span>Control API URL</span>
-          <input v-model="endpoint" type="url" inputmode="url" autocomplete="url" required />
-          <small>Usually `http://127.0.0.1:8083` through a trusted local proxy.</small>
+          <span>{{ t('Webpage management Token') }}</span>
+          <input v-model="token" type="password" autocomplete="off" spellcheck="false" required />
+          <small>{{ t("The browser sends it to this panel's Origin and keeps it only in memory.") }}</small>
         </label>
 
-        <label class="field">
-          <span>Bearer token</span>
-          <input v-model="token" type="password" autocomplete="off" spellcheck="false" required />
-          <small>The token stays in memory and is lost when this page reloads.</small>
-        </label>
+        <p v-if="token === 'change-me'" class="placeholder-warning" role="alert">
+          {{ t('This placeholder works for first use but is not safe. Replace it in hop.yaml.') }}
+        </p>
+
+        <details class="advanced-connection">
+          <summary>{{ t('Connect to another instance') }}</summary>
+          <label class="field">
+            <span>{{ t('Remote Control API URL') }}</span>
+            <input v-model="endpoint" type="url" inputmode="url" autocomplete="url" placeholder="https://hop.example.com" />
+            <small>{{ t('Leave empty for the recommended same-origin Compose connection.') }}</small>
+          </label>
+        </details>
 
         <p v-if="submitError || connection.state.error" class="form-error" role="alert">
           {{ submitError || connection.state.error }}
@@ -235,12 +264,12 @@ function refresh() {
 
         <div class="connection-actions">
           <button class="button-secondary" type="button" @click="switchToDemo">
-            <FlaskConical :size="17" aria-hidden="true" /> Use demo data
+            <FlaskConical :size="17" aria-hidden="true" /> {{ t('Use demo data') }}
           </button>
           <button class="button-primary" type="submit" :disabled="connection.state.connecting">
             <RefreshCw v-if="connection.state.connecting" class="spin" :size="17" aria-hidden="true" />
             <Cable v-else :size="17" aria-hidden="true" />
-            {{ connection.state.connecting ? 'Connecting…' : 'Connect' }}
+            {{ t(connection.state.connecting ? 'Connecting…' : 'Connect') }}
           </button>
         </div>
       </form>
@@ -510,6 +539,28 @@ function refresh() {
   padding: 18px var(--content-gutter) 32px;
 }
 
+.token-warning {
+  display: flex;
+  max-width: 920px;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 11px 13px;
+  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--line));
+  border-radius: var(--radius-control);
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.token-warning svg {
+  flex: 0 0 auto;
+  margin-block-start: 1px;
+}
+
+.token-warning code {
+  color: inherit;
+}
+
 .mobile-dock,
 .mobile-sheet-layer {
   display: none;
@@ -582,6 +633,29 @@ function refresh() {
 
 .field small {
   color: var(--text-muted);
+}
+
+.placeholder-warning {
+  margin: -6px 0 0 !important;
+  padding: 10px 12px;
+  border-radius: var(--radius-control);
+  background: var(--warning-soft);
+  color: var(--warning) !important;
+}
+
+.advanced-connection {
+  border-top: 1px solid var(--line);
+  padding-block-start: 14px;
+}
+
+.advanced-connection summary {
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.advanced-connection[open] summary {
+  margin-block-end: 14px;
 }
 
 .form-error {

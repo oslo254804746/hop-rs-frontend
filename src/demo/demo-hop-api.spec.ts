@@ -50,7 +50,7 @@ describe('createDemoHopApi', () => {
     ).rejects.toMatchObject<Partial<HopApiError>>({
       status: 409,
       code: 'managed_by_source',
-      message: 'managed_by_source: resource is managed by home',
+      message: 'managed_by_source: resource is managed by the startup configuration',
     })
     expect((await api.listAssets()).find((asset) => asset.id === 'asset-prod-gateway')?.hostname).toBe(
       '10.24.0.12',

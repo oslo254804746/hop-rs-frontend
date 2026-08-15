@@ -3,9 +3,11 @@
 import { describe, expect, it } from 'vitest'
 
 import { getHopApi, hopQueryKeys } from '@/queries'
+import { useConnection } from '@/stores/connection'
 
 describe('Hop query runtime', () => {
   it('reuses one stateful demo adapter for the browser session', async () => {
+    useConnection().useDemo()
     const first = getHopApi()
     const second = getHopApi()
     const name = `runtime-demo-${Date.now()}`
@@ -26,11 +28,5 @@ describe('Hop query runtime', () => {
   it('keeps query keys scoped and hierarchically invalidatable', () => {
     expect(hopQueryKeys.status('demo')).toEqual(['hop', 'demo', 'instance', 'status'])
     expect(hopQueryKeys.assets('live-1')).toEqual(['hop', 'live-1', 'catalog', 'assets'])
-    expect(hopQueryKeys.configSources('demo')).toEqual([
-      'hop',
-      'demo',
-      'configuration',
-      'sources',
-    ])
   })
 })

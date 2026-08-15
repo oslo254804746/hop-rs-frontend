@@ -9,11 +9,11 @@ import {
 
 describe('Hop API domain boundary', () => {
   it('keeps server capability gaps explicit', () => {
-    expect(REMOTE_HOP_API_CAPABILITIES).toEqual({ ownership: false, assetHealth: false })
+    expect(REMOTE_HOP_API_CAPABILITIES).toEqual({ ownership: true, assetHealth: false })
     expect(DEMO_HOP_API_CAPABILITIES).toEqual({ ownership: true, assetHealth: true })
 
     expect(() => {
-      ;(REMOTE_HOP_API_CAPABILITIES as HopApiCapabilities).ownership = true
+      ;(REMOTE_HOP_API_CAPABILITIES as HopApiCapabilities).ownership = false
     }).toThrow(TypeError)
   })
 

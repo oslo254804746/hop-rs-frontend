@@ -49,11 +49,11 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
     if (resource === undefined) {
       throw apiError(422, 'validation_failed', `unknown ${resourceType} id: ${id}`)
     }
-    if (resource.management?.mode === 'declarative') {
+    if (resource.management?.mode === 'config') {
       throw apiError(
         409,
         'managed_by_source',
-        `managed_by_source: resource is managed by ${resource.management.sourceId}`,
+        'managed_by_source: resource is managed by the startup configuration',
       )
     }
   }
@@ -341,16 +341,6 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
       return { id, terminated }
     },
 
-    async listConfigSources(requestOptions) {
-      checkRequest(requestOptions)
-      return clone(state.configStatus.sources)
-    },
-
-    async getConfigStatus(requestOptions) {
-      checkRequest(requestOptions)
-      return clone(state.configStatus)
-    },
-
     async validateManifest(input, requestOptions) {
       checkRequest(requestOptions)
       validateManifest(input)
@@ -386,39 +376,6 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
       return clone(summary)
     },
 
-    async reloadConfig(requestOptions) {
-      checkRequest(requestOptions)
-      const source = state.configStatus.sources[1] ?? state.configStatus.sources[0]
-      if (source === undefined) return { applied: [] }
-      const baseRevision = state.status.catalogRevision
-      incrementRevision()
-      source.generation += 1
-      source.lastSuccessAt = demoNow()
-      source.lastSuccessRevision = state.status.catalogRevision
-      source.lastErrorAt = null
-      source.lastErrorCode = null
-      source.lastErrorMessage = null
-      return {
-        applied: [
-          {
-            sourceId: source.sourceId,
-            baseRevision,
-            newRevision: state.status.catalogRevision,
-            generation: source.generation,
-            dryRun: false,
-            created: 0,
-            updated: 1,
-            deleted: 0,
-            orphaned: 0,
-            unchanged: 1,
-            changes: [
-              { resourceType: 'asset', name: 'edge-router', action: 'updated' },
-              { resourceType: 'access_key', name: 'ci-deploy', action: 'unchanged' },
-            ],
-          },
-        ],
-      }
-    },
   }
 }
 

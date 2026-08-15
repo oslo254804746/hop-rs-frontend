@@ -22,7 +22,7 @@ test.describe('390px mobile workspace', () => {
     const inspector = page.getByRole('complementary', { name: 'Selected asset' })
     await expect(inspector.getByRole('heading', { name: 'router-ui' })).toBeVisible()
     await expect(page).toHaveURL(/asset=asset-router-ui/)
-    await expect(inspector).toContainText('Demo-only · synthetic')
+    await expect(inspector).toContainText('Panel / local ownership')
     await expectNoPageOverflow(page)
 
     await page.goBack()

@@ -253,7 +253,7 @@ The palette is a low-glare blue-charcoal neutral field with mint operational sta
 
 ### Secondary
 
-- **Caution Amber** (`warning`, `warning-soft`; light counterparts prefixed `light-`): source problems, missing credentials, re-authentication, and other conditions that require attention without implying failure.
+- **Caution Amber** (`warning`, `warning-soft`; light counterparts prefixed `light-`): placeholder Tokens, missing credentials, re-authentication, and other conditions that require attention without implying failure.
 - **Destructive Coral** (`danger`, `danger-soft`; light counterparts prefixed `light-`): destructive actions, rejected or failed state, validation errors, and irreversible confirmation; `danger-ink` is the dark foreground on a solid destructive button.
 
 ### Tertiary
@@ -293,7 +293,7 @@ The palette is a low-glare blue-charcoal neutral field with mint operational sta
 
 The global shell uses a fixed 224px navigation rail, a sticky 68px top bar, and a content gutter that grows from 16px to 28px. Primary page stacks and asymmetric overview columns use a 12px rhythm; panels are separated by visible seams rather than generous whitespace. Controls are 42–44px high, summary rows are commonly 50–54px, and inventory rows are 59px so dense information remains operable.
 
-At 900–1535px the rail compresses to 76px and removes text labels while retaining every route. Below 900px the rail disappears, the top bar becomes 58px, the main gutter becomes 12px, and a five-position bottom dock occupies at least 64px plus the safe-area inset. The dock exposes Overview, Assets, Access, Sessions, and More; Credentials and Configuration move into the More sheet.
+At 900–1535px the rail compresses to 76px and removes text labels while retaining every route. Below 900px the rail disappears, the top bar becomes 58px, the main gutter becomes 12px, and a five-position bottom dock occupies at least 64px plus the safe-area inset. The dock exposes Overview, Assets, Access, Sessions, and More; Credentials and Settings move into the More sheet.
 
 The Assets workspace is a master-detail grid: 190px context filters, a flexible inventory with a 520px minimum, and a 320px inspector. At 1535px the context rail collapses into toolbar filters; at 1199px the inspector becomes a fixed 380px overlay; below 900px selection hides the inventory and opens a URL-driven detail surface from the top bar to the bottom dock. The compact mobile inventory replaces table headers with two-column rows. On the overview, two asymmetric columns stack at 1199px and the four-resource strip becomes two columns at 760px.
 
@@ -353,7 +353,7 @@ Components are quiet at rest, direct in state, and sized for repeated operationa
 
 - **Inventory:** desktop rows are 59px high and align to a five-column grid with tabular addresses. Hover uses Hover; selection uses Selected plus an inset 2px mint seam.
 - **Inspector:** remains 320px in the full desktop grid, becomes a 380px overlay below 1200px, and becomes a full-screen URL-driven layer below 900px.
-- **Ownership:** local, declarative, unknown, and mutation-rejected ownership states use explicit copy and notices; no ownership or health state is inferred from appearance alone.
+- **Ownership:** local and configuration-managed states use explicit copy and notices. Configuration-managed actions are absent before editing begins; no health state is inferred from appearance alone.
 
 **The Durable State Rule.** Every active, selected, warning, destructive, ownership, and connection state must remain understandable without color and must survive responsive transformation.
 
@@ -374,5 +374,5 @@ Components are quiet at rest, direct in state, and sized for repeated operationa
 - **Don't** introduce large display type, ornamental font pairings, or marketing-dashboard language.
 - **Don't** turn every row into a floating card; keep compact tables and seam-separated ledgers.
 - **Don't** spend mint on decoration or use red for anything short of failure, validation, or destructive action.
-- **Don't** fabricate ownership, asset health, audit events, connection tests, secret reveal, or other real-API capabilities.
+- **Don't** fabricate asset health, audit events, connection tests, secret reveal, or other real-API capabilities. Ownership comes only from the real `local | config` API field.
 - **Don't** collapse desktop navigation or inspectors without preserving routes, selected resource state, and keyboard access.
