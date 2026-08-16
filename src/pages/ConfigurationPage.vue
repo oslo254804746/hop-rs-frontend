@@ -3,6 +3,7 @@ import { Cable, FileCode2, KeyRound, LockKeyhole, ShieldCheck } from '@lucide/vu
 import { computed } from 'vue'
 
 import { InlineNotice, StatusBadge } from '@/components/ui'
+import { getPanelRuntimeConfig } from '@/api'
 import { useI18n } from '@/i18n'
 import { useStatusQuery } from '@/queries'
 import { useConnection } from '@/stores/connection'
@@ -10,6 +11,8 @@ import { useConnection } from '@/stores/connection'
 const connection = useConnection()
 const statusQuery = useStatusQuery()
 const { t } = useI18n()
+const panelRuntime = getPanelRuntimeConfig()
+const isOpenWrt = panelRuntime.deployment === 'openwrt'
 
 const connectionLabel = computed(() => {
   if (connection.state.mode === 'demo') return t('Demo workspace')
@@ -34,7 +37,7 @@ const endpointLabel = computed(() => connection.state.endpoint || globalThis.loc
       tone="warning"
       :title="t('Replace the placeholder Token')"
     >
-      {{ t('Placeholder token settings warning') }}
+      {{ t(isOpenWrt ? 'OpenWrt placeholder token settings warning' : 'Placeholder token settings warning') }}
     </InlineNotice>
 
     <section class="settings-grid">
@@ -43,7 +46,7 @@ const endpointLabel = computed(() => connection.state.endpoint || globalThis.loc
           <span class="settings-icon" aria-hidden="true"><Cable :size="20" /></span>
           <div>
             <h2>{{ t('Panel connection') }}</h2>
-            <p>{{ t('Compose uses the panel Origin by default. A remote URL is an advanced option.') }}</p>
+            <p>{{ t(isOpenWrt ? 'OpenWrt uses the LuCI-authenticated loopback proxy by default.' : 'Compose uses the panel Origin by default. A remote URL is an advanced option.') }}</p>
           </div>
           <StatusBadge
             :label="t(connection.state.mode === 'live' ? 'Connected' : connection.state.mode === 'demo' ? 'Demo workspace' : 'Token required status')"
@@ -69,7 +72,7 @@ const endpointLabel = computed(() => connection.state.endpoint || globalThis.loc
             :tone="connection.state.insecureToken ? 'warning' : 'neutral'"
           />
         </header>
-        <p class="settings-copy">{{ t('Token storage explanation') }}</p>
+        <p class="settings-copy">{{ t(isOpenWrt ? 'OpenWrt token storage explanation' : 'Token storage explanation') }}</p>
       </article>
     </section>
 
@@ -87,7 +90,7 @@ const endpointLabel = computed(() => connection.state.endpoint || globalThis.loc
       </div>
       <div class="ownership-row">
         <span class="ownership-mark config" aria-hidden="true"><FileCode2 :size="19" /></span>
-        <div><strong>{{ t('Configuration file') }}</strong><p>{{ t('Config ownership explanation') }}</p></div>
+        <div><strong>{{ t('Configuration file') }}</strong><p>{{ t(isOpenWrt ? 'OpenWrt config ownership explanation' : 'Config ownership explanation') }}</p></div>
         <StatusBadge :label="t('Read-only')" tone="info" />
       </div>
     </section>
@@ -96,7 +99,7 @@ const endpointLabel = computed(() => connection.state.endpoint || globalThis.loc
       <LockKeyhole :size="21" aria-hidden="true" />
       <div>
         <h2>{{ t('Browser security') }}</h2>
-        <p>{{ t('Browser security explanation') }}</p>
+        <p>{{ t(isOpenWrt ? 'OpenWrt browser security explanation' : 'Browser security explanation') }}</p>
       </div>
     </section>
   </div>

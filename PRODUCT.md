@@ -18,6 +18,8 @@ Provide the official graphical surface for Hop: understand instance state, manag
 
 The backend repository's Compose stack is primary. The panel is opened at its own Origin and requests `/api/v1`; Nginx forwards only that prefix to the private Hop service. Users enter only the webpage management Token. A separately hosted remote API URL is an advanced connection option.
 
+On OpenWrt, `luci-app-hop` serves the same panel after LuCI authentication, injects its local API path at runtime, and forwards an explicit method/path allowlist to the Hop Control API on loopback. The service/core settings remain a separate native LuCI surface.
+
 ## Capabilities
 
 - Overview: API connection, version, Catalog counts, ownership boundary, action items, and recent sessions.
@@ -43,6 +45,7 @@ The real API returns `ownership: local | config` on assets, credentials, and acc
 - Credential secrets are write-only and private keys are never generated for ingress users.
 - Static assets and proxy configuration contain no deployment Token.
 - Production proxy is prefix-constrained and emits CSP/security headers.
+- OpenWrt proxy is LuCI-authenticated, operation-allowlisted, loopback-only, and emits the panel document with equivalent browser security headers.
 
 ## Product principles
 

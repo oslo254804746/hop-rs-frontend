@@ -13,6 +13,7 @@ import {
   MonitorUp,
   Moon,
   RefreshCw,
+  Router,
   Server,
   Settings2,
   ShieldCheck,
@@ -23,6 +24,7 @@ import { useQueryClient } from '@tanstack/vue-query'
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 
+import { getPanelRuntimeConfig } from '@/api'
 import { useConnection } from '@/stores/connection'
 import { useTheme } from '@/stores/theme'
 import { useI18n } from '@/i18n'
@@ -32,6 +34,9 @@ const queryClient = useQueryClient()
 const connection = useConnection()
 const theme = useTheme()
 const { locale, t, toggleLocale } = useI18n()
+const panelRuntime = getPanelRuntimeConfig()
+const serviceUrl = panelRuntime.serviceUrl
+const isOpenWrt = panelRuntime.deployment === 'openwrt'
 
 const navItems = computed(() => [
   { name: 'overview', label: t('Overview'), to: '/', icon: CircleGauge },
@@ -188,6 +193,10 @@ onMounted(async () => {
             <Settings2 :size="17" aria-hidden="true" />
             {{ t('Instance') }}
           </button>
+          <a v-if="serviceUrl" class="configure-action" :href="serviceUrl">
+            <Router :size="17" aria-hidden="true" />
+            {{ t('Router settings') }}
+          </a>
         </div>
       </header>
 
@@ -228,6 +237,9 @@ onMounted(async () => {
         <button class="sheet-link" type="button" @click="mobileMenuOpen = false; openConnection()">
           <Cable :size="19" aria-hidden="true" /> {{ t('Instance connection') }}
         </button>
+        <a v-if="serviceUrl" class="sheet-link" :href="serviceUrl">
+          <Router :size="19" aria-hidden="true" /> {{ t('Router settings') }}
+        </a>
       </section>
     </div>
 
@@ -236,7 +248,7 @@ onMounted(async () => {
         <header>
           <div>
             <h2>{{ t('Connect to Hop') }}</h2>
-            <p>{{ t('Enter the webpage management Token from hop.yaml.') }}</p>
+            <p>{{ t(isOpenWrt ? 'Enter the webpage management Token from the OpenWrt service configuration.' : 'Enter the webpage management Token from hop.yaml.') }}</p>
           </div>
           <button class="icon-action" type="button" aria-label="Close connection settings" @click="closeConnection">
             <X :size="19" aria-hidden="true" />
@@ -246,11 +258,11 @@ onMounted(async () => {
         <label class="field">
           <span>{{ t('Webpage management Token') }}</span>
           <input v-model="token" type="password" autocomplete="off" spellcheck="false" required />
-          <small>{{ t("The browser sends it to this panel's Origin and keeps it only in memory.") }}</small>
+          <small>{{ t(isOpenWrt ? 'LuCI forwards it only to the loopback Hop API and the browser keeps it only in memory.' : "The browser sends it to this panel's Origin and keeps it only in memory.") }}</small>
         </label>
 
         <p v-if="token === 'change-me'" class="placeholder-warning" role="alert">
-          {{ t('This placeholder works for first use but is not safe. Replace it in hop.yaml.') }}
+          {{ t(isOpenWrt ? 'OpenWrt placeholder replace warning' : 'This placeholder works for first use but is not safe. Replace it in hop.yaml.') }}
         </p>
 
         <details class="advanced-connection">
@@ -513,6 +525,7 @@ onMounted(async () => {
   border: 1px solid var(--line);
   background: transparent;
   color: var(--text);
+  text-decoration: none;
 }
 
 .configure-action:hover {

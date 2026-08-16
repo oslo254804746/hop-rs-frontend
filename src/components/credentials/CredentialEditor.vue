@@ -5,8 +5,10 @@ import { computed, reactive, watch } from 'vue'
 import { BaseButton, FormField, InlineNotice } from '@/components/ui'
 import type { Credential, CredentialAuthType, CredentialWriteInput } from '@/domain'
 import { useI18n } from '@/i18n'
+import { getPanelRuntimeConfig } from '@/api'
 
 const { t } = useI18n()
+const isOpenWrt = getPanelRuntimeConfig().deployment === 'openwrt'
 
 const props = defineProps<{
   mode: 'create' | 'rotate'
@@ -142,7 +144,7 @@ watch(
       tone="warning"
       :title="t('Managed by configuration')"
     >
-      {{ t('Config credential editor explanation') }}
+      {{ t(isOpenWrt ? 'OpenWrt config credential editor explanation' : 'Config credential editor explanation') }}
     </InlineNotice>
 
     <InlineNotice

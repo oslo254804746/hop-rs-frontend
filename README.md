@@ -47,6 +47,29 @@ npm run dev
 
 Open `http://127.0.0.1:4173`. The app starts at the authentication dialog; choose “Use demo data” when no backend is available.
 
+## OpenWrt / LuCI build
+
+The same application can be built for `luci-app-hop` without changing the
+standalone Nginx deployment:
+
+```bash
+npm run build:openwrt
+```
+
+This mode emits assets under `/hop/` and uses hash routing so LuCI does not need
+an SPA fallback for nested routes. The LuCI controller serves the generated
+`index.html` after login, injects the authenticated API/service paths through
+`hop-*` meta elements, and proxies only the documented Hop API operations to
+the loopback listener. The browser still holds the Hop management Token only in
+memory.
+
+From a neighbouring `luci-app-hop` checkout, synchronize the generated static
+files with:
+
+```bash
+../luci-app-hop/scripts/sync-frontend.sh "$PWD"
+```
+
 ## Quality gates
 
 ```bash
@@ -54,6 +77,7 @@ npm run lint
 npm run typecheck
 npm run test:unit
 npm run build
+npm run build:openwrt
 npm run test:e2e
 npm run test:container
 ```

@@ -5,6 +5,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { BaseButton, FormField, InlineNotice } from '@/components/ui'
 import type { AccessKey, AccessKeyCreateInput, Asset } from '@/domain'
 import { useI18n } from '@/i18n'
+import { getPanelRuntimeConfig } from '@/api'
 
 type ScopeChoice = 'all' | 'restricted' | 'empty'
 
@@ -22,6 +23,7 @@ const emit = defineEmits<{
   updateScope: [assetIds: string[] | null]
 }>()
 const { t } = useI18n()
+const isOpenWrt = getPanelRuntimeConfig().deployment === 'openwrt'
 
 const form = reactive({
   name: '',
@@ -146,7 +148,7 @@ watch(
       tone="warning"
       :title="t('Managed by configuration')"
     >
-      {{ t('Config access editor explanation') }}
+      {{ t(isOpenWrt ? 'OpenWrt config access editor explanation' : 'Config access editor explanation') }}
     </InlineNotice>
 
     <InlineNotice

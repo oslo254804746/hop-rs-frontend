@@ -16,6 +16,7 @@ import {
 import { computed, ref, watch } from 'vue'
 
 import CredentialEditor from '@/components/credentials/CredentialEditor.vue'
+import { getPanelRuntimeConfig } from '@/api'
 import {
   BaseButton,
   ConfirmDialog,
@@ -41,6 +42,7 @@ const updateMutation = useUpdateCredentialMutation()
 const deleteMutation = useDeleteCredentialMutation()
 const runtime = useHopApiRuntime()
 const { t } = useI18n()
+const isOpenWrt = getPanelRuntimeConfig().deployment === 'openwrt'
 
 const search = ref('')
 const selectedId = ref<string | null>(null)
@@ -426,7 +428,7 @@ async function deleteCredential() {
           <InlineNotice
             v-if="selectedConfigManaged"
             tone="warning"
-            :title="t('Managed by hop.yaml')"
+            :title="t(isOpenWrt ? 'OpenWrt managed config title' : 'Managed by hop.yaml')"
           >
             {{ t('Config credential read-only explanation') }}
           </InlineNotice>

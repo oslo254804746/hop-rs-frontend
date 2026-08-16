@@ -35,6 +35,6 @@ Approved comps:
 | Type | Compact workhorse system UI, tabular operational numbers, mono only for identifiers | CSS font stacks |
 | State | Mint connected/action, amber warning, red destructive/failure, text+icon labels | CSS + Lucide icons |
 
-## Unresolved product gaps
+## Product gaps
 
-The real API does not expose ownership/source metadata, asset health, audit events, connection tests, or secret reveal. These appear only where the transport truly provides them; `managed_by_source` is handled after a rejected mutation. LuCI transport and public package naming remain future decisions.
+The real API does not expose asset health, audit events, connection tests, or secret reveal. These appear only where the transport truly provides them. The OpenWrt build uses the shipped LuCI-authenticated loopback proxy and keeps service/core settings in the native LuCI surface.

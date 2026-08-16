@@ -1,5 +1,7 @@
 import { computed, reactive, readonly } from 'vue'
 
+import { getPanelRuntimeConfig } from '@/api/runtime-config'
+
 export type ConnectionMode = 'demo' | 'live' | 'reauth'
 
 interface ConnectionState {
@@ -15,6 +17,7 @@ interface ConnectionState {
 
 const endpointKey = 'hop.control-api-url'
 const savedEndpoint = window.sessionStorage.getItem(endpointKey) ?? ''
+const defaultControlApiBaseUrl = getPanelRuntimeConfig().controlApiBaseUrl
 
 const state = reactive<ConnectionState>({
   mode: 'reauth',
@@ -50,7 +53,7 @@ async function connectToHop(endpoint: string, token: string) {
     if (!normalizedToken) throw new Error('Enter the Bearer management token.')
 
     const controlApiBase = normalizedEndpoint === ''
-      ? '/api/v1'
+      ? defaultControlApiBaseUrl
       : normalizedEndpoint.endsWith('/api/v1')
         ? normalizedEndpoint
         : `${normalizedEndpoint}/api/v1`

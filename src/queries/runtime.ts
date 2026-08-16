@@ -1,11 +1,12 @@
 import { computed, type ComputedRef } from 'vue'
 
-import { createFetchHopApi } from '@/api'
+import { createFetchHopApi, getPanelRuntimeConfig } from '@/api'
 import { createDemoHopApi } from '@/demo'
 import type { HopApi, HopApiCapabilities, HopApiMode } from '@/domain'
 import { getConnectionCredentials, useConnection, type ConnectionMode } from '@/stores/connection'
 
 const demoApi = createDemoHopApi()
+const defaultControlApiBaseUrl = getPanelRuntimeConfig().controlApiBaseUrl
 
 let remoteApi: HopApi | null = null
 let remoteEndpoint = ''
@@ -14,7 +15,10 @@ let remoteSessionId = 0
 
 function resolveRemoteApi(endpoint: string, token: string): HopApi {
   if (remoteApi === null || endpoint !== remoteEndpoint || token !== remoteToken) {
-    remoteApi = createFetchHopApi({ baseUrl: endpoint, token })
+    remoteApi = createFetchHopApi({
+      baseUrl: endpoint === '' ? defaultControlApiBaseUrl : endpoint,
+      token,
+    })
     remoteEndpoint = endpoint
     remoteToken = token
     remoteSessionId += 1

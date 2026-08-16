@@ -3,7 +3,8 @@ import { fileURLToPath, URL } from 'node:url'
 import vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vite'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  base: mode === 'openwrt' ? '/hop/' : '/',
   plugins: [vue()],
   resolve: {
     alias: {
@@ -18,4 +19,4 @@ export default defineConfig({
     port: 4173,
     strictPort: true,
   },
-})
+}))

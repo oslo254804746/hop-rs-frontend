@@ -18,6 +18,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { z } from 'zod'
 
 import { BaseButton, ConfirmDialog, EmptyState, InlineNotice, StatusBadge } from '@/components/ui'
+import { getPanelRuntimeConfig } from '@/api'
 import type { Asset, AssetProtocol, AssetWriteInput } from '@/domain'
 import { useI18n } from '@/i18n'
 import {
@@ -49,6 +50,7 @@ const createMutation = useCreateAssetMutation()
 const updateMutation = useUpdateAssetMutation()
 const deleteMutation = useDeleteAssetMutation()
 const { t } = useI18n()
+const isOpenWrt = getPanelRuntimeConfig().deployment === 'openwrt'
 
 const search = ref(typeof route.query.q === 'string' ? route.query.q : '')
 const protocol = ref<'all' | AssetProtocol>(
@@ -344,7 +346,7 @@ watch([search, protocol], () => {
           <div v-if="selectedAsset.tags.length"><dt>{{ t('Tags') }}</dt><dd class="tag-list"><span v-for="tag in selectedAsset.tags" :key="tag">{{ tag }}</span></dd></div>
         </dl>
 
-        <InlineNotice v-if="selectedAsset.management?.mode === 'config'" tone="info" :title="t('Managed by hop.yaml')">
+        <InlineNotice v-if="selectedAsset.management?.mode === 'config'" tone="info" :title="t(isOpenWrt ? 'OpenWrt managed config title' : 'Managed by hop.yaml')">
           <p>{{ t('Config asset read-only explanation') }}</p>
         </InlineNotice>
 

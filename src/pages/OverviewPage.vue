@@ -14,6 +14,7 @@ import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import { InlineNotice, StatusBadge } from '@/components/ui'
+import { getPanelRuntimeConfig } from '@/api'
 import { useI18n } from '@/i18n'
 import {
   useAccessKeysQuery,
@@ -32,6 +33,7 @@ const credentialsQuery = useCredentialsQuery()
 const accessKeysQuery = useAccessKeysQuery()
 const sessionsQuery = useSessionsQuery()
 const { t } = useI18n()
+const isOpenWrt = getPanelRuntimeConfig().deployment === 'openwrt'
 
 const activeSessions = computed(
   () => sessionsQuery.data.value?.filter((session) => session.status === 'started') ?? [],
@@ -222,7 +224,7 @@ const resourceSummary = computed(() => [
           <header class="section-heading">
             <div>
               <h2>{{ t('Management boundary') }}</h2>
-              <p>{{ t('Edit panel resources here; edit configuration resources in hop.yaml.') }}</p>
+              <p>{{ t(isOpenWrt ? 'OpenWrt management boundary explanation' : 'Edit panel resources here; edit configuration resources in hop.yaml.') }}</p>
             </div>
             <RouterLink to="/configuration">{{ t('Settings') }} <ArrowRight :size="15" /></RouterLink>
           </header>

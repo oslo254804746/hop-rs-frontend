@@ -10,6 +10,8 @@
     "dev": "vite",
     "build": "npm-run-all -p typecheck build-only",
     "build-only": "vite build",
+    "build:openwrt": "npm-run-all typecheck build:openwrt-only",
+    "build:openwrt-only": "vite build --mode openwrt",
     "preview": "vite preview",
     "typecheck": "vue-tsc --build",
     "lint": "eslint . --max-warnings=0",
