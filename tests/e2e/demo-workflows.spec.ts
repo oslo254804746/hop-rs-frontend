@@ -8,7 +8,7 @@ test.describe('Hop demo workspace', () => {
     await page.setViewportSize({ width: 1440, height: 900 })
   })
 
-  test('starts in an explicit Demo workspace and exposes all six routes', async ({ page }) => {
+  test('starts in an explicit Demo workspace and exposes all seven routes', async ({ page }) => {
     await openDemo(page)
     await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible()
     await expect(page.getByRole('button', { name: /Demo data.*Synthetic workspace/i })).toBeVisible()
@@ -21,6 +21,7 @@ test.describe('Hop demo workspace', () => {
       ['Credentials', '/credentials'],
       ['Access', '/access'],
       ['Sessions', '/sessions'],
+      ['Host trust', '/known-hosts'],
       ['Settings', '/configuration'],
     ] as const
 
@@ -118,6 +119,29 @@ test.describe('Hop demo workspace', () => {
     await expect(page.getByText('Termination signal sent')).toBeVisible()
     await expect(page.getByText(/was marked terminated/i)).toBeVisible()
     await expect(page.getByRole('button', { name: /Active 0/ })).toBeVisible()
+  })
+
+  test('resets one verified target host trust record through explicit confirmation', async ({ page }) => {
+    await openDemo(page, '/known-hosts')
+
+    const ledger = page.getByRole('list', { name: 'Known Hosts' })
+    await expect(ledger).toBeVisible()
+    const row = ledger.getByRole('button', { name: /192\.168\.50\.15.*ssh-ed25519/i })
+    await row.click()
+
+    const details = page.getByRole('complementary', { name: 'Known Host details' })
+    await expect(details).toContainText('homelab-nas')
+    await expect(details).toContainText('SHA256:4fK8mQ1Vx7Cz3Ny9Lp2Ba6Hs0Td5Re8Ju1Wi4Go7SnA')
+    await details.getByRole('button', { name: 'Reset trust', exact: true }).click()
+
+    const confirmation = page.getByRole('dialog')
+    await expect(confirmation.getByRole('heading', { name: 'Reset this host trust?' })).toBeVisible()
+    await expect(confirmation).toContainText('next managed connection')
+    await confirmation.getByRole('button', { name: 'Reset trust', exact: true }).click()
+
+    await expect(page.getByText('Host trust reset')).toBeVisible()
+    await expect(row).toHaveCount(0)
+    await expect(page.getByText('2 trusted host keys')).toBeVisible()
   })
 
   test('explains same-origin authentication and switches between English and Chinese', async ({ page }) => {

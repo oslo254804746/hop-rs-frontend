@@ -11,6 +11,8 @@ import type {
   CredentialWriteInput,
   DiffManifestInput,
   InstanceStatus,
+  KnownHost,
+  KnownHostIdentity,
   Session,
   ValidateManifestInput,
 } from '@/domain'
@@ -28,6 +30,8 @@ import type {
   WireCredential,
   WireCredentialWriteRequest,
   WireDiffRequest,
+  WireKnownHost,
+  WireKnownHostResetRequest,
   WireSession,
   WireStatusResponse,
   WireValidateRequest,
@@ -127,6 +131,25 @@ export function mapSession(value: WireSession): Session {
     error: value.error,
     startedAt: value.started_at,
     endedAt: value.ended_at,
+  }
+}
+
+export function mapKnownHost(value: WireKnownHost): KnownHost {
+  return {
+    hostname: value.hostname,
+    port: value.port,
+    keyType: value.key_type,
+    fingerprint: value.fingerprint,
+    firstSeen: value.first_seen,
+  }
+}
+
+export function mapKnownHostResetInput(value: KnownHostIdentity): WireKnownHostResetRequest {
+  return {
+    hostname: value.hostname,
+    port: value.port,
+    key_type: value.keyType,
+    confirm_reset: true,
   }
 }
 

@@ -341,6 +341,23 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
       return { id, terminated }
     },
 
+    async listKnownHosts(requestOptions) {
+      checkRequest(requestOptions)
+      return clone(state.knownHosts)
+    },
+
+    async resetKnownHost(identity, requestOptions) {
+      checkRequest(requestOptions)
+      const index = state.knownHosts.findIndex(
+        (host) =>
+          host.hostname === identity.hostname &&
+          host.port === identity.port &&
+          host.keyType === identity.keyType,
+      )
+      if (index < 0) throw apiError(404, 'not_found', 'resource not found')
+      state.knownHosts.splice(index, 1)
+    },
+
     async validateManifest(input, requestOptions) {
       checkRequest(requestOptions)
       validateManifest(input)

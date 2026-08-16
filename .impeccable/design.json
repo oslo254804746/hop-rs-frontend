@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-14T11:22:04.703Z",
+  "generatedAt": "2026-08-16T12:04:56.000Z",
   "title": "Design System: Hop Management Workspace",
   "extensions": {
     "colorMeta": {
@@ -532,7 +532,7 @@
       "light-ink-muted": {
         "role": "neutral",
         "displayName": "Light Muted Ink",
-        "canonical": "#687987",
+        "canonical": "#596b79",
         "tonalRamp": [
           "oklch(15% 0.0296 243.1)",
           "oklch(26.4% 0.0296 243.1)",
@@ -592,7 +592,7 @@
       "light-warning": {
         "role": "secondary",
         "displayName": "Light Caution Amber",
-        "canonical": "#9b6713",
+        "canonical": "#87550a",
         "tonalRamp": [
           "oklch(15% 0.1125 72.4)",
           "oklch(26.4% 0.1125 72.4)",
@@ -952,6 +952,14 @@
       "description": "Signature inventory row whose inset mint seam joins selection to the inspector.",
       "html": "<button class=\"ds-asset-row is-selected\" type=\"button\" aria-current=\"true\"><span class=\"ds-asset-name\"><strong>prod-gateway</strong><small>Production ingress host</small></span><span>SSH</span><code>10.24.0.12:22</code><span class=\"ds-asset-state\">● deploy-key</span><span>Source · home</span></button>",
       "css": ".ds-asset-row { display: grid; width: 100%; min-height: 59px; grid-template-columns: minmax(190px, 1.35fr) 92px minmax(150px, 1fr) minmax(130px, 0.8fr) minmax(120px, 0.85fr); align-items: center; gap: 10px; padding: 0 16px; border: 0; border-bottom: 1px solid var(--line, #2a394b); color: var(--text, #c2ccd6); background: transparent; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif; font-size: 14px; text-align: left; cursor: pointer; } .ds-asset-row:hover { background: var(--surface-hover, #213044); } .ds-asset-row:focus-visible { outline: 2px solid var(--focus, #8ccaff); outline-offset: -2px; } .ds-asset-row.is-selected { background: var(--surface-selected, #26384b); box-shadow: inset 2px 0 var(--accent, #53c7a2); } .ds-asset-row > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-asset-name { display: grid; } .ds-asset-name strong { color: var(--text-strong, #edf3f7); font-weight: 600; } .ds-asset-name small { color: var(--text-muted, #8795a5); font-size: 11px; } .ds-asset-row code { color: var(--text-strong, #edf3f7); font-family: SFMono-Regular, Consolas, Liberation Mono, monospace; font-size: 14px; } .ds-asset-state { color: var(--accent-strong, #76d7b7); }"
+    },
+    {
+      "name": "Selected Host Trust Row",
+      "kind": "custom",
+      "refersTo": "host-trust-row",
+      "description": "Selected TOFU record with exact host identity, key algorithm, abbreviated SHA256 fingerprint, and a persistent mint selection seam.",
+      "html": "<button class=\"ds-host-row is-selected\" type=\"button\" aria-pressed=\"true\"><span class=\"ds-host-identity\"><svg viewBox=\"0 0 24 24\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"16\" rx=\"2\"/><path d=\"M7 8h.01M7 12h.01M7 16h.01M11 8h6M11 12h6M11 16h6\"/></svg><span><strong>router.lan</strong><small>Port 22</small></span></span><code>ssh-ed25519</code><code>SHA256:Q5vB…xM9k</code><time>Aug 14, 10:42</time></button>",
+      "css": ".ds-host-row { display: grid; width: 100%; min-height: 64px; grid-template-columns: minmax(145px, 1.1fr) minmax(115px, .86fr) minmax(180px, 1.35fr) minmax(112px, .78fr); align-items: center; gap: 14px; padding: 8px 14px; border: 0; border-bottom: 1px solid var(--line, #2a394b); color: var(--text, #c2ccd6); background: transparent; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif; font-size: 14px; text-align: left; cursor: pointer; } .ds-host-row:hover { background: var(--surface-hover, #213044); } .ds-host-row:focus-visible { outline: 2px solid var(--focus, #8ccaff); outline-offset: -2px; } .ds-host-row.is-selected { background: var(--surface-selected, #26384b); box-shadow: inset 2px 0 var(--accent, #53c7a2); } .ds-host-row > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-host-identity { display: flex; align-items: center; gap: 10px; } .ds-host-identity > svg { box-sizing: content-box; padding: 8px; border-radius: 8px; color: var(--accent-strong, #76d7b7); background: var(--accent-soft, #183c37); } .ds-host-identity span { min-width: 0; } .ds-host-identity strong, .ds-host-identity small { display: block; overflow: hidden; text-overflow: ellipsis; } .ds-host-identity strong { color: var(--text-strong, #edf3f7); font-weight: 650; } .ds-host-identity small, .ds-host-row time { color: var(--text-muted, #8795a5); font-size: 12px; } .ds-host-row code { color: var(--text-strong, #edf3f7); font-family: SFMono-Regular, Consolas, Liberation Mono, monospace; font-size: 12px; }"
     }
   ],
   "narrative": {
@@ -960,9 +968,9 @@
     "keyCharacteristics": [
       "Matte graphite and blue-charcoal layers with a matched light theme.",
       "One restrained mint accent for connection, selection, and safe primary action.",
-      "Compact tables, 42–44px controls, and 54–59px operational rows.",
+      "Compact tables, 42–44px controls, and 54–64px operational rows.",
       "Hairline seams and tonal layering before shadows.",
-      "Desktop rail and inspector transform into a bottom dock and URL-driven full-screen mobile detail.",
+      "The desktop rail becomes a bottom dock; the Assets inspector becomes URL-driven full-screen mobile detail.",
       "Status always uses text and icon in addition to color."
     ],
     "rules": [
@@ -992,6 +1000,11 @@
         "section": "shapes"
       },
       {
+        "name": "The Verified Reset Rule",
+        "body": "Never frame reset as a connection test, key replacement, or mismatch repair. It removes one stored fingerprint only; the next managed connection establishes whatever host key it receives as the new TOFU record.",
+        "section": "components"
+      },
+      {
         "name": "The Durable State Rule",
         "body": "Every active, selected, warning, destructive, ownership, and connection state must remain understandable without color and must survive responsive transformation.",
         "section": "components"
@@ -1002,7 +1015,7 @@
       "Do use matte semantic layers, 1px seams, and the 12px page rhythm to keep dense screens readable.",
       "Do preserve the same color meanings and prominence order in both dark and light themes.",
       "Do use tabular figures for operational counts, timestamps, durations, ports, and revisions.",
-      "Do keep mobile detail URL-driven, full-screen, and bounded between the 58px top bar and the dock safe area.",
+      "Do keep Assets mobile detail URL-driven, full-screen, and bounded between the 58px top bar and the dock safe area.",
       "Do label synthetic demo facts and show only capabilities or status that the transport actually provides."
     ],
     "donts": [
@@ -1010,7 +1023,7 @@
       "Don't introduce large display type, ornamental font pairings, or marketing-dashboard language.",
       "Don't turn every row into a floating card; keep compact tables and seam-separated ledgers.",
       "Don't spend mint on decoration or use red for anything short of failure, validation, or destructive action.",
-      "Don't fabricate ownership, asset health, audit events, connection tests, secret reveal, or other real-API capabilities.",
+      "Don't fabricate asset health, audit events, connection tests, secret reveal, or other real-API capabilities. Ownership comes only from the real `local | config` API field.",
       "Don't collapse desktop navigation or inspectors without preserving routes, selected resource state, and keyboard access."
     ]
   }

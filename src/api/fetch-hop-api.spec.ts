@@ -92,6 +92,44 @@ describe('createFetchHopApi', () => {
     expect(stub.calls[0]?.input).toBe('/api/v1/assets/asset%2Fwith%20spaces')
   })
 
+  it('lists Known Hosts and sends an explicit trust-reset confirmation', async () => {
+    const stub = queuedFetch([
+      jsonResponse([
+        {
+          hostname: '192.0.2.10',
+          port: 22,
+          key_type: 'ssh-ed25519',
+          fingerprint: 'SHA256:old',
+          first_seen: '2026-08-16 10:00:00',
+        },
+      ]),
+      new Response(null, { status: 204 }),
+    ])
+    const api = createFetchHopApi({ baseUrl: '', token: 'token', fetch: stub.fetch })
+
+    await expect(api.listKnownHosts()).resolves.toEqual([
+      {
+        hostname: '192.0.2.10',
+        port: 22,
+        keyType: 'ssh-ed25519',
+        fingerprint: 'SHA256:old',
+        firstSeen: '2026-08-16 10:00:00',
+      },
+    ])
+    await expect(
+      api.resetKnownHost({ hostname: '192.0.2.10', port: 22, keyType: 'ssh-ed25519' }),
+    ).resolves.toBeUndefined()
+
+    expect(stub.calls[1]?.input).toBe('/api/v1/known-hosts')
+    expect(stub.calls[1]?.init?.method).toBe('DELETE')
+    expect(JSON.parse(String(stub.calls[1]?.init?.body))).toEqual({
+      hostname: '192.0.2.10',
+      port: 22,
+      key_type: 'ssh-ed25519',
+      confirm_reset: true,
+    })
+  })
+
   it('normalizes structured API errors and preserves path metadata', async () => {
     const stub = queuedFetch([
       jsonResponse(

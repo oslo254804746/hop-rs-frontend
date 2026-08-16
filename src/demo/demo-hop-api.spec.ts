@@ -89,6 +89,29 @@ describe('createDemoHopApi', () => {
     })
   })
 
+  it('resets only the selected Known Hosts identity', async () => {
+    const api = createDemoHopApi()
+    const hosts = await api.listKnownHosts()
+    const selected = hosts[0]!
+
+    await api.resetKnownHost({
+      hostname: selected.hostname,
+      port: selected.port,
+      keyType: selected.keyType,
+    })
+
+    const remaining = await api.listKnownHosts()
+    expect(remaining).toHaveLength(hosts.length - 1)
+    expect(remaining).not.toContainEqual(selected)
+    await expect(
+      api.resetKnownHost({
+        hostname: selected.hostname,
+        port: selected.port,
+        keyType: selected.keyType,
+      }),
+    ).rejects.toMatchObject<Partial<HopApiError>>({ status: 404, code: 'not_found' })
+  })
+
   it('rejects stale apply revisions and applies against the current revision', async () => {
     const api = createDemoHopApi()
     const input = {

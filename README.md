@@ -18,7 +18,8 @@ Open `http://localhost:8080` and enter the webpage management Token. The default
 
 ## What is included
 
-- Overview, SSH/TCP assets, target credentials, ingress public keys, and sessions.
+- Overview, SSH/TCP assets, target credentials, ingress public keys, sessions, and Known Hosts trust records.
+- Complete target fingerprints and an explicitly confirmed trust reset for verified rebuilds or SSH Host Key rotations.
 - Local resource create/update/delete and active-session termination.
 - Minimal `local`/`config` ownership: local resources are editable; `hop.yaml` resources are labelled read-only before action buttons render.
 - A focused Settings page for connection, Token, same-origin proxy, CSP, and ownership boundaries.

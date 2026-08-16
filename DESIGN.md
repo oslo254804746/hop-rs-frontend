@@ -37,11 +37,11 @@ colors:
   light-seam-strong: "#b7c5cf"
   light-ink-strong: "#15212c"
   light-ink: "#354656"
-  light-ink-muted: "#687987"
+  light-ink-muted: "#596b79"
   light-mint: "#147d68"
   light-mint-strong: "#086a58"
   light-mint-soft: "#d9f0e9"
-  light-warning: "#9b6713"
+  light-warning: "#87550a"
   light-warning-soft: "#faecd3"
   light-danger: "#b83b45"
   light-danger-soft: "#f8e1e4"
@@ -221,6 +221,13 @@ components:
     rounded: "{rounded.none}"
     padding: "0 16px"
     height: "59px"
+  host-trust-row:
+    backgroundColor: "{colors.selected}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body}"
+    rounded: "{rounded.none}"
+    padding: "8px 14px"
+    height: "64px"
 ---
 
 # Design System: Hop Management Workspace
@@ -237,9 +244,9 @@ Brand character comes from precision: hairline seams, restrained mint, workhorse
 
 - Matte graphite and blue-charcoal layers with a matched light theme.
 - One restrained mint accent for connection, selection, and safe primary action.
-- Compact tables, 42–44px controls, and 54–59px operational rows.
+- Compact tables, 42–44px controls, and 54–64px operational rows.
 - Hairline seams and tonal layering before shadows.
-- Desktop rail and inspector transform into a bottom dock and URL-driven full-screen mobile detail.
+- The desktop rail becomes a bottom dock; the Assets inspector becomes URL-driven full-screen mobile detail.
 - Status always uses text and icon in addition to color.
 
 ## Colors
@@ -291,11 +298,13 @@ The palette is a low-glare blue-charcoal neutral field with mint operational sta
 
 ## Layout
 
-The global shell uses a fixed 224px navigation rail, a sticky 68px top bar, and a content gutter that grows from 16px to 28px. Primary page stacks and asymmetric overview columns use a 12px rhythm; panels are separated by visible seams rather than generous whitespace. Controls are 42–44px high, summary rows are commonly 50–54px, and inventory rows are 59px so dense information remains operable.
+The global shell uses a fixed 224px navigation rail, a sticky 68px top bar, and a content gutter that grows from 16px to 28px. Primary page stacks and asymmetric overview columns use a 12px rhythm; panels are separated by visible seams rather than generous whitespace. Controls are 42–44px high, summary rows are commonly 50–54px, and inventory rows are 59–64px so dense information remains operable.
 
-At 900–1535px the rail compresses to 76px and removes text labels while retaining every route. Below 900px the rail disappears, the top bar becomes 58px, the main gutter becomes 12px, and a five-position bottom dock occupies at least 64px plus the safe-area inset. The dock exposes Overview, Assets, Access, Sessions, and More; Credentials and Settings move into the More sheet.
+At 900–1535px the rail compresses to 76px and removes text labels while retaining every route. Below 900px the rail disappears, the top bar becomes 58px, the main gutter becomes 12px, and a five-position bottom dock occupies at least 64px plus the safe-area inset. The dock exposes Overview, Assets, Access, Sessions, and More; Credentials, Host trust, and Settings move into the More sheet.
 
 The Assets workspace is a master-detail grid: 190px context filters, a flexible inventory with a 520px minimum, and a 320px inspector. At 1535px the context rail collapses into toolbar filters; at 1199px the inspector becomes a fixed 380px overlay; below 900px selection hides the inventory and opens a URL-driven detail surface from the top bar to the bottom dock. The compact mobile inventory replaces table headers with two-column rows. On the overview, two asymmetric columns stack at 1199px and the four-resource strip becomes two columns at 760px.
+
+The Host trust workspace pairs a flexible 64px-row ledger with a 320px-minimum detail panel. Below 1181px its optional first-trusted column is removed; below 900px the ledger and detail stack; below 621px each machine value gains a visible field label and wraps without horizontal scrolling. Host trust remains a secondary mobile destination inside More rather than consuming one of the four primary dock positions.
 
 **The Shell Transformation Rule.** Preserve navigation, state, and selection across the 224px rail, 76px rail, and mobile dock modes; responsive adaptation changes presentation, never the operator's place in the task.
 
@@ -355,6 +364,15 @@ Components are quiet at rest, direct in state, and sized for repeated operationa
 - **Inspector:** remains 320px in the full desktop grid, becomes a 380px overlay below 1200px, and becomes a full-screen URL-driven layer below 900px.
 - **Ownership:** local and configuration-managed states use explicit copy and notices. Configuration-managed actions are absent before editing begins; no health state is inferred from appearance alone.
 
+### Host Trust Ledger
+
+- **Inventory:** each 64px row identifies one TOFU record by exact hostname and port, key algorithm, abbreviated SHA256 fingerprint, and first-trusted time. Hover uses Hover; selection uses Selected plus an inset 2px mint seam.
+- **Inspector:** shows the complete SHA256 fingerprint without truncation, first-trusted time, and matching SSH assets. The Trusted badge describes the stored verification record; it does not claim that the target is currently healthy or reachable.
+- **Reset:** reset is a destructive action on one verified record. Amber guidance requires the operator to verify a rebuild or intentional key rotation first; the confirmation repeats the complete fingerprint and explains that the next managed connection will establish new trust through TOFU.
+- **Responsive:** compact rows retain every fact as labeled, wrapping content below 621px; the detail follows the ledger below 900px rather than becoming a separate URL-backed surface.
+
+**The Verified Reset Rule.** Never frame reset as a connection test, key replacement, or mismatch repair. It removes one stored fingerprint only; the next managed connection establishes whatever host key it receives as the new TOFU record.
+
 **The Durable State Rule.** Every active, selected, warning, destructive, ownership, and connection state must remain understandable without color and must survive responsive transformation.
 
 ## Do's and Don'ts
@@ -365,7 +383,7 @@ Components are quiet at rest, direct in state, and sized for repeated operationa
 - **Do** use matte semantic layers, 1px seams, and the 12px page rhythm to keep dense screens readable.
 - **Do** preserve the same color meanings and prominence order in both dark and light themes.
 - **Do** use tabular figures for operational counts, timestamps, durations, ports, and revisions.
-- **Do** keep mobile detail URL-driven, full-screen, and bounded between the 58px top bar and the dock safe area.
+- **Do** keep Assets mobile detail URL-driven, full-screen, and bounded between the 58px top bar and the dock safe area.
 - **Do** label synthetic demo facts and show only capabilities or status that the transport actually provides.
 
 ### Don't:

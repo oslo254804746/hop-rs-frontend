@@ -57,3 +57,12 @@ export function useSessionsQuery() {
     enabled: runtime.ready,
   })
 }
+
+export function useKnownHostsQuery() {
+  const runtime = useHopApiRuntime()
+  return useQuery({
+    queryKey: computed(() => hopQueryKeys.knownHosts(runtime.scope.value)),
+    queryFn: ({ signal }) => runtime.requireApi().listKnownHosts({ signal }),
+    enabled: runtime.ready,
+  })
+}

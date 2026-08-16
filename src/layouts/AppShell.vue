@@ -6,6 +6,7 @@ import {
   ChevronRight,
   CircleGauge,
   FlaskConical,
+  Fingerprint,
   KeyRound,
   Languages,
   Layers3,
@@ -44,12 +45,16 @@ const navItems = computed(() => [
   { name: 'credentials', label: t('Credentials'), to: '/credentials', icon: KeyRound },
   { name: 'access', label: t('Access'), to: '/access', icon: ShieldCheck },
   { name: 'sessions', label: t('Sessions'), to: '/sessions', icon: MonitorUp },
+  { name: 'known-hosts', label: t('Host trust'), to: '/known-hosts', icon: Fingerprint },
   { name: 'configuration', label: t('Settings'), to: '/configuration', icon: Settings2 },
 ])
 
 const mobileItems = computed(() => navItems.value.filter((item) =>
   ['overview', 'assets', 'access', 'sessions'].includes(item.name),
 ))
+const moreActive = computed(() =>
+  ['credentials', 'known-hosts', 'configuration'].includes(String(route.name)),
+)
 
 const pageTitle = computed(() => t(String(route.meta.title ?? 'Hop')))
 const connectionDialog = ref<HTMLDialogElement | null>(null)
@@ -214,7 +219,13 @@ onMounted(async () => {
         <component :is="item.icon" :size="20" :stroke-width="1.8" aria-hidden="true" />
         <span>{{ item.label }}</span>
       </RouterLink>
-      <button class="dock-link" type="button" @click="mobileMenuOpen = true">
+      <button
+        class="dock-link"
+        :class="{ 'is-active': moreActive }"
+        type="button"
+        :aria-current="moreActive ? 'page' : undefined"
+        @click="mobileMenuOpen = true"
+      >
         <Menu :size="20" aria-hidden="true" />
         <span>{{ t('More') }}</span>
       </button>
@@ -231,9 +242,23 @@ onMounted(async () => {
         <RouterLink class="sheet-link" to="/credentials" @click="mobileMenuOpen = false">
           <KeyRound :size="19" aria-hidden="true" /> {{ t('Credentials') }}
         </RouterLink>
+        <RouterLink class="sheet-link" to="/known-hosts" @click="mobileMenuOpen = false">
+          <Fingerprint :size="19" aria-hidden="true" /> {{ t('Host trust') }}
+        </RouterLink>
         <RouterLink class="sheet-link" to="/configuration" @click="mobileMenuOpen = false">
           <Settings2 :size="19" aria-hidden="true" /> {{ t('Settings') }}
         </RouterLink>
+        <button class="sheet-link compact-only" type="button" @click="mobileMenuOpen = false; refresh()">
+          <RefreshCw :size="19" aria-hidden="true" /> {{ t('Refresh') }}
+        </button>
+        <button class="sheet-link compact-only" type="button" @click="theme.toggleTheme">
+          <Sun v-if="theme.resolvedTheme.value === 'dark'" :size="19" aria-hidden="true" />
+          <Moon v-else :size="19" aria-hidden="true" />
+          {{ t(theme.resolvedTheme.value === 'dark' ? 'Light' : 'Dark') }}
+        </button>
+        <button class="sheet-link compact-only" type="button" @click="toggleLocale">
+          <Languages :size="19" aria-hidden="true" /> {{ locale === 'en' ? '中文' : 'EN' }}
+        </button>
         <button class="sheet-link" type="button" @click="mobileMenuOpen = false; openConnection()">
           <Cable :size="19" aria-hidden="true" /> {{ t('Instance connection') }}
         </button>
@@ -544,6 +569,7 @@ onMounted(async () => {
   color: var(--accent-strong);
   font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .mode-badge.is-reauth {
@@ -580,6 +606,10 @@ onMounted(async () => {
 
 .mobile-dock,
 .mobile-sheet-layer {
+  display: none;
+}
+
+.compact-only {
   display: none;
 }
 
@@ -831,6 +861,11 @@ onMounted(async () => {
     color: var(--accent-strong);
   }
 
+  .dock-link.is-active {
+    background: var(--surface-selected);
+    color: var(--accent-strong);
+  }
+
   .mobile-sheet-layer {
     position: fixed;
     inset: 0;
@@ -883,6 +918,16 @@ onMounted(async () => {
   .button-primary,
   .button-secondary {
     width: 100%;
+  }
+}
+
+@media (max-width: 620px) {
+  .topbar-actions .labeled-action {
+    display: none;
+  }
+
+  .compact-only {
+    display: flex;
   }
 }
 </style>

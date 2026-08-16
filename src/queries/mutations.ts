@@ -6,6 +6,7 @@ import type {
   AssetWriteInput,
   CredentialWriteInput,
   DiffManifestInput,
+  KnownHostIdentity,
   ValidateManifestInput,
 } from '@/domain'
 
@@ -186,6 +187,16 @@ export function useTerminateSessionMutation() {
     mutationFn: (id: string) => runtime.requireApi().terminateSession(id),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: hopQueryKeys.sessions(runtime.scope.value) }),
+  })
+}
+
+export function useResetKnownHostMutation() {
+  const runtime = useHopApiRuntime()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (identity: KnownHostIdentity) => runtime.requireApi().resetKnownHost(identity),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: hopQueryKeys.knownHosts(runtime.scope.value) }),
   })
 }
 

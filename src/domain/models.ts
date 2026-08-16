@@ -117,6 +117,20 @@ export interface TerminateSessionResult {
   terminated: boolean
 }
 
+export interface KnownHost {
+  hostname: string
+  port: number
+  keyType: string
+  fingerprint: string
+  firstSeen: Timestamp | null
+}
+
+export interface KnownHostIdentity {
+  hostname: string
+  port: number
+  keyType: string
+}
+
 export interface ConfigSourceStatus {
   sourceId: string
   generation: number

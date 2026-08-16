@@ -38,6 +38,12 @@ export const router = createRouter({
       meta: { title: 'Sessions' },
     },
     {
+      path: '/known-hosts',
+      name: 'known-hosts',
+      component: () => import('@/pages/KnownHostsPage.vue'),
+      meta: { title: 'Host trust' },
+    },
+    {
       path: '/configuration',
       name: 'configuration',
       component: () => import('@/pages/ConfigurationPage.vue'),

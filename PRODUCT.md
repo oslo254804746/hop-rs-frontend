@@ -27,6 +27,7 @@ On OpenWrt, `luci-app-hop` serves the same panel after LuCI authentication, inje
 - Credentials: create, rotate, and delete local target credentials without secret readback.
 - Access: register existing public keys, enable/disable, and manage all/restricted/deny-all asset scopes.
 - Sessions: inspect up to 100 recent records and signal an active transport.
+- Host trust: inspect complete target host-key fingerprints and explicitly reset one verified TOFU record after a rebuild or intentional key rotation.
 - Settings: explain connection, same-origin proxy, Token memory, CSP, and ownership.
 - Language: instant English / Simplified Chinese switch.
 - Demo: explicit synthetic workspace for offline evaluation.

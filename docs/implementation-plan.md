@@ -17,7 +17,7 @@ src/
   queries/      Vue Query keys、queries、mutations
   components/   UI 与业务编辑器
   layouts/      响应式全局壳、连接层、语言切换
-  pages/        Overview/Assets/Credentials/Access/Sessions/Settings
+  pages/        Overview/Assets/Credentials/Access/Sessions/HostTrust/Settings
   stores/       内存 Token、可选 session endpoint、主题
 ```
 
@@ -49,9 +49,16 @@ src/
 ### 4. 国际化
 
 - 新增无运行时依赖的 English/简体中文切换。
-- 主壳、六个页面、编辑器、确认、状态、空态和安全提示使用统一 `t()`。
+- 主壳、七个页面、编辑器、确认、状态、空态和安全提示使用统一 `t()`。
 - `<html lang>`、`Intl.DateTimeFormat` 与 `Intl.RelativeTimeFormat` 跟随 locale。
 - E2E 覆盖双向切换与持久化边界。
+
+### 5. Known Hosts 信任重置
+
+- 真实与 Demo adapter 统一实现 Known Hosts 列表和精确重置。
+- 页面显示主机、端口、算法、完整 SHA256 指纹、首次信任时间和匹配 SSH 资产。
+- 删除请求固定携带 `confirm_reset: true`，并由危险确认弹窗保护下一次 TOFU 自动学习边界。
+- 桌面使用紧凑列表与持久详情；移动端保留全部字段且不产生横向滚动。
 
 ### 5. 生产容器
 

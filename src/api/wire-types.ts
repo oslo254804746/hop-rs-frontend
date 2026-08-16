@@ -98,6 +98,21 @@ export interface WireTerminateResponse {
   terminated: boolean
 }
 
+export interface WireKnownHost {
+  hostname: string
+  port: number
+  key_type: string
+  fingerprint: string
+  first_seen: string | null
+}
+
+export interface WireKnownHostResetRequest {
+  hostname: string
+  port: number
+  key_type: string
+  confirm_reset: true
+}
+
 export interface WireConfigSourceStatus {
   source_id: string
   generation: number

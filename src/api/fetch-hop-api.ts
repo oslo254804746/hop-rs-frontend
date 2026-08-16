@@ -5,6 +5,7 @@ import {
   type Asset,
   type Credential,
   type HopApi,
+  type KnownHost,
   type RequestOptions,
   type Session,
   type TerminateSessionResult,
@@ -22,6 +23,8 @@ import {
   mapCredential,
   mapCredentialInput,
   mapDiffInput,
+  mapKnownHost,
+  mapKnownHostResetInput,
   mapSession,
   mapStatus,
   mapValidateInput,
@@ -31,6 +34,7 @@ import type {
   WireApplySummary,
   WireAsset,
   WireCredential,
+  WireKnownHost,
   WireRevisionResponse,
   WireSession,
   WireStatusResponse,
@@ -260,6 +264,21 @@ export function createFetchHopApi(options: FetchHopApiOptions): HopApi {
         },
       )
       return { id: response.id, terminated: response.terminated }
+    },
+
+    async listKnownHosts(requestOptions): Promise<KnownHost[]> {
+      const response = await request<WireKnownHost[]>('/known-hosts', {
+        ...signalOptions(requestOptions),
+      })
+      return response.map(mapKnownHost)
+    },
+
+    async resetKnownHost(identity, requestOptions) {
+      await request<void>('/known-hosts', {
+        method: 'DELETE',
+        body: mapKnownHostResetInput(identity),
+        ...signalOptions(requestOptions),
+      })
     },
 
     async validateManifest(input, requestOptions): Promise<ValidationResult> {

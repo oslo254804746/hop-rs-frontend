@@ -5,6 +5,7 @@ import type {
   ConfigSourceStatus,
   Credential,
   InstanceStatus,
+  KnownHost,
   Session,
 } from '@/domain'
 
@@ -14,6 +15,7 @@ export interface DemoFixtures {
   credentials: Credential[]
   accessKeys: AccessKey[]
   sessions: Session[]
+  knownHosts: KnownHost[]
   configStatus: CatalogStatus
 }
 
@@ -321,6 +323,29 @@ export function createDemoFixtures(): DemoFixtures {
         error: 'asset access denied',
         startedAt: '2026-08-14 08:58:43',
         endedAt: '2026-08-14 08:58:43',
+      },
+    ],
+    knownHosts: [
+      {
+        hostname: '10.24.0.12',
+        port: 22,
+        keyType: 'ssh-ed25519',
+        fingerprint: 'SHA256:7mH4wY2Pp8T0Kx6Nq3Rz9Bc5Lv1Df4Gj2Sa6Eu8Ci0Q',
+        firstSeen: '2026-07-28 14:22:16',
+      },
+      {
+        hostname: '192.168.50.15',
+        port: 22,
+        keyType: 'ssh-ed25519',
+        fingerprint: 'SHA256:4fK8mQ1Vx7Cz3Ny9Lp2Ba6Hs0Td5Re8Ju1Wi4Go7SnA',
+        firstSeen: '2026-08-02 18:15:03',
+      },
+      {
+        hostname: '10.24.2.31',
+        port: 2222,
+        keyType: 'ssh-rsa',
+        fingerprint: 'SHA256:9cT2vM5Xq1Za8Df4Hg7Jk0Lp3Rs6Bn9Wy2Eu5Ai8CoQ',
+        firstSeen: '2026-08-11 08:06:29',
       },
     ],
     configStatus: {

@@ -9,6 +9,8 @@ import type {
   CredentialWriteInput,
   DiffManifestInput,
   InstanceStatus,
+  KnownHost,
+  KnownHostIdentity,
   Session,
   TerminateSessionResult,
   ValidateManifestInput,
@@ -75,6 +77,9 @@ export interface HopApi {
 
   listSessions(options?: RequestOptions): Promise<Session[]>
   terminateSession(id: string, options?: RequestOptions): Promise<TerminateSessionResult>
+
+  listKnownHosts(options?: RequestOptions): Promise<KnownHost[]>
+  resetKnownHost(identity: KnownHostIdentity, options?: RequestOptions): Promise<void>
 
   validateManifest(
     input: ValidateManifestInput,

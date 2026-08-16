@@ -8,8 +8,8 @@ Hop 面板是紧凑、低噪声的运维工作区。它首先回答：实例是�
 
 ## 2. 全局壳
 
-- 桌面侧栏：Overview、Assets、Credentials、Access、Sessions、Settings。
-- 移动底栏保留高频入口，Credentials 与 Settings 进入 More。
+- 桌面侧栏：Overview、Assets、Credentials、Access、Sessions、Host trust、Settings。
+- 移动底栏保留高频入口，Credentials、Host trust 与 Settings 进入 More。
 - 顶栏提供主题、刷新、实例连接和 English/中文切换。
 - 首次打开显示连接对话框。默认只要求 `hop.yaml` 的网页管理 Token；远程 API URL 位于折叠高级区域。
 - Demo 模式必须始终带有 synthetic 标识。
@@ -25,6 +25,7 @@ Token 只保存在页面内存。远程 endpoint 可写 sessionStorage；locale 
 | `/credentials` | 管理目标认证材料 | 新建、轮换/删除本地凭据 |
 | `/access` | 管理入口公钥与资产范围 | 新建、启停、修改范围、删除本地公钥 |
 | `/sessions` | 查看并终止活动连接 | 查看详情、显式确认终止 |
+| `/known-hosts` | 核验目标 SSH 主机密钥信任 | 查看完整指纹、匹配资产、显式确认重置信任 |
 | `/configuration` | 理解连接与安全设置 | 重新认证、查看 ownership/CSP 说明 |
 
 ## 4. Ownership 交互
@@ -46,6 +47,7 @@ Token 只保存在页面内存。远程 endpoint 可写 sessionStorage；locale 
 - 刷新清除 Token 后显示 re-auth 状态，不把它误报为后端故障。
 - 远程 URL 使用 `<details>` 降低默认路径认知负担。
 - Settings 明确 Nginx 只代理 `/api/v1`、Token 不持久化、配置资源需改文件并重启。
+- Host trust 详情显示完整 SHA256 指纹；重置前说明风险并要求独立确认目标重装或密钥轮换。
 
 ## 6. 国际化
 
