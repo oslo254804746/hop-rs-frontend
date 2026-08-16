@@ -34,7 +34,7 @@ docker network create "$NETWORK" >/dev/null
 docker run -d --name "$BACKEND_CONTAINER" --network "$NETWORK" --network-alias hop \
     -e HOP_CONFIG=/etc/hop/hop.yaml \
     -v "$TEMP_DIR/hop.yaml:/etc/hop/hop.yaml:ro" \
-    "$BACKEND_IMAGE" hop-server --config /etc/hop/hop.yaml serve >/dev/null
+    "$BACKEND_IMAGE" >/dev/null
 docker run -d --name "$PANEL_CONTAINER" --network "$NETWORK" \
     -p 127.0.0.1::80 "$PANEL_IMAGE" >/dev/null
 

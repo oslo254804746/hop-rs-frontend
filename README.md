@@ -1,24 +1,17 @@
 # Hop management panel
 
-The official static web panel for Hop. The recommended production path is the sibling backend repository's `compose.yaml`: the browser opens the panel and calls same-origin `/api/v1`, while Hop's port 8083 stays private to the Compose network.
+The official static web panel for Hop. The recommended production path is the backend repository's pull-only `compose.yaml`: the browser opens the panel and calls same-origin `/api/v1`, while Hop's port 8083 stays private to the Compose network.
 
 ## Production with Hop
 
-Place both repositories next to each other:
-
-```text
-parent/
-  hop-rs/
-  hop-rs-frontend/
-```
-
-Then start from `hop-rs`:
+No frontend checkout or local build is required. From the backend deployment files:
 
 ```bash
-cp hop.yaml hop.local.yaml
-# Replace api.token: change-me in hop.local.yaml.
-chmod 0600 hop.local.yaml
-HOP_CONFIG_FILE=./hop.local.yaml docker compose up -d --build
+cp examples/panel-first.yaml hop.yaml
+# Replace api.token: change-me in hop.yaml.
+chmod 0600 hop.yaml
+docker compose pull
+docker compose up -d
 ```
 
 Open `http://localhost:8080` and enter the webpage management Token. The default flow never asks for an API URL. A separate remote Control API URL is available only in the advanced “Connect to another instance” section.
