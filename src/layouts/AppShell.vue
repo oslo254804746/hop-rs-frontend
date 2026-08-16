@@ -68,17 +68,21 @@ async function submitConnection() {
   submitError.value = ''
   try {
     await connection.connectToHop(endpoint.value, token.value)
-    queryClient.clear()
-    closeConnection()
   } catch (error) {
     submitError.value = error instanceof Error ? error.message : 'The instance could not be reached.'
+    return
   }
+
+  closeConnection()
+  await nextTick()
+  await queryClient.resetQueries()
 }
 
-function switchToDemo() {
+async function switchToDemo() {
   connection.useDemo()
-  queryClient.clear()
   closeConnection()
+  await nextTick()
+  await queryClient.resetQueries()
 }
 
 function refresh() {
