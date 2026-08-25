@@ -14,7 +14,7 @@ Hop 面板是紧凑、低噪声的运维工作区。它首先回答：实例是�
 - 首次打开显示连接对话框。默认只要求 `hop.yaml` 的网页管理 Token；远程 API URL 位于折叠高级区域。
 - Demo 模式必须始终带有 synthetic 标识。
 
-Token 只保存在页面内存。远程 endpoint 可写 sessionStorage；locale 是唯一允许写 localStorage 的状态。
+Token 仅保存在当前标签页的 sessionStorage，刷新时校验后自动重连。远程 endpoint 也可写 sessionStorage；locale 是唯一允许写 localStorage 的状态。
 
 ## 3. 信息架构
 
@@ -44,9 +44,9 @@ Token 只保存在页面内存。远程 endpoint 可写 sessionStorage；locale 
 
 - 同源 Compose 显示 “This panel · same origin”，不要求填写 URL。
 - `change-me` 在连接对话框、全局壳和 Settings 中持续警告。
-- 刷新清除 Token 后显示 re-auth 状态，不把它误报为后端故障。
+- 刷新时用已保存的 Token 静默校验并恢复连接；只有无可用 Token 或校验失败时才显示 re-auth。
 - 远程 URL 使用 `<details>` 降低默认路径认知负担。
-- Settings 明确 Nginx 只代理 `/api/v1`、Token 不持久化、配置资源需改文件并重启。
+- Settings 明确 Nginx 只代理 `/api/v1`、Token 仅在当前标签页会话中保存、配置资源需改文件并重启。
 - Host trust 详情显示完整 SHA256 指纹；重置前说明风险并要求独立确认目标重装或密钥轮换。
 
 ## 6. 国际化

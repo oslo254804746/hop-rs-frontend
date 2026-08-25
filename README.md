@@ -31,8 +31,8 @@ Secret values are write-only. Stored credential material and ingress private key
 
 ## Connection security
 
-- The management Token is held only in JavaScript memory. It is not stored in localStorage, sessionStorage, Vue Query persistence, Nginx configuration, logs, or the build output.
-- Refreshing the page clears the Token and requires re-authentication.
+- After a successful connection, the management Token is stored in the current tab's sessionStorage so a refresh can reconnect automatically. It is not stored in localStorage, Vue Query persistence, Nginx configuration, logs, or the build output.
+- Closing the tab session, choosing Demo, or explicitly requiring/forgetting the connection clears the saved Token.
 - `change-me` works for first use but produces a visible warning and must be replaced.
 - The production Nginx configuration proxies exactly `/api/v1` to `http://hop:8083`, returns 404 for other `/api` paths, applies SPA fallback elsewhere, and sends a restrictive CSP and security headers.
 - A remote cross-origin URL is an advanced deployment and should use HTTPS plus an explicit backend Origin configuration.
@@ -61,8 +61,8 @@ This mode emits assets under `/hop/` and uses hash routing so LuCI does not need
 an SPA fallback for nested routes. The LuCI controller serves the generated
 `index.html` after login, injects the authenticated API/service paths through
 `hop-*` meta elements, and proxies only the documented Hop API operations to
-the loopback listener. The browser still holds the Hop management Token only in
-memory.
+the loopback listener. The browser still scopes the Hop management Token to the
+current tab session.
 
 From a neighbouring `luci-app-hop` checkout, synchronize the generated static
 files with:

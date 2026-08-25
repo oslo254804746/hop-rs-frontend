@@ -101,6 +101,11 @@ function refresh() {
 
 onMounted(async () => {
   if (connection.state.mode !== 'reauth') return
+  if (await connection.restoreConnection()) {
+    await nextTick()
+    await queryClient.resetQueries()
+    return
+  }
   await nextTick()
   openConnection()
 })
@@ -283,7 +288,7 @@ onMounted(async () => {
         <label class="field">
           <span>{{ t('Webpage management Token') }}</span>
           <input v-model="token" type="password" autocomplete="off" spellcheck="false" required />
-          <small>{{ t(isOpenWrt ? 'LuCI forwards it only to the loopback Hop API and the browser keeps it only in memory.' : "The browser sends it to this panel's Origin and keeps it only in memory.") }}</small>
+          <small>{{ t(isOpenWrt ? 'LuCI forwards it only to the loopback Hop API and remembers it for this tab session.' : "The browser sends it to this panel's Origin and remembers it for this tab session.") }}</small>
         </label>
 
         <p v-if="token === 'change-me'" class="placeholder-warning" role="alert">

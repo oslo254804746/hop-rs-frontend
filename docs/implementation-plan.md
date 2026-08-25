@@ -18,10 +18,10 @@ src/
   components/   UI 与业务编辑器
   layouts/      响应式全局壳、连接层、语言切换
   pages/        Overview/Assets/Credentials/Access/Sessions/HostTrust/Settings
-  stores/       内存 Token、可选 session endpoint、主题
+  stores/       当前标签页 Token、可选 session endpoint、主题
 ```
 
-页面不直接调用 `fetch`。真实与 Demo adapter 实现同一 domain 接口。Token 不进入任何 Web Storage；locale 之外禁止 localStorage。
+页面不直接调用 `fetch`。真实与 Demo adapter 实现同一 domain 接口。Token 仅进入当前标签页的 sessionStorage；locale 之外禁止 localStorage。
 
 ## 已实施阶段
 
@@ -37,7 +37,7 @@ src/
 - 首次状态为 re-auth，而不是自动 Demo。
 - 主表单只有 Token；高级 `<details>` 才显示远程 URL。
 - `change-me` 设置 `insecureToken` 并显示多处警告。
-- 刷新清除 Token；仅非敏感的远程 endpoint 与主题偏好可在 sessionStorage 保存。
+- 连接成功后将 Token 保存在当前标签页的 sessionStorage，刷新时先校验并自动重连；切换 Demo、重新认证、忘记实例或标签页会话结束时清除。
 
 ### 3. 产品工作流收缩
 

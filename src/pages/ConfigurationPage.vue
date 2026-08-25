@@ -68,7 +68,7 @@ const endpointLabel = computed(() => connection.state.endpoint || globalThis.loc
             <p>{{ t('One Bearer Token authorizes all panel actions for this Hop instance.') }}</p>
           </div>
           <StatusBadge
-            :label="t(connection.state.mode === 'live' ? 'In memory' : 'Not stored')"
+            :label="t(connection.state.mode === 'live' ? 'This tab' : 'Not stored')"
             :tone="connection.state.insecureToken ? 'warning' : 'neutral'"
           />
         </header>

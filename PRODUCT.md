@@ -28,7 +28,7 @@ On OpenWrt, `luci-app-hop` serves the same panel after LuCI authentication, inje
 - Access: register existing public keys, enable/disable, and manage all/restricted/deny-all asset scopes.
 - Sessions: inspect up to 100 recent records and signal an active transport.
 - Host trust: inspect complete target host-key fingerprints and explicitly reset one verified TOFU record after a rebuild or intentional key rotation.
-- Settings: explain connection, same-origin proxy, Token memory, CSP, and ownership.
+- Settings: explain connection, same-origin proxy, tab-session Token storage, CSP, and ownership.
 - Language: instant English / Simplified Chinese switch.
 - Demo: explicit synthetic workspace for offline evaluation.
 
@@ -39,8 +39,8 @@ The real API returns `ownership: local | config` on assets, credentials, and acc
 ## Security constraints
 
 - One Bearer Token authorizes panel management; there are no panel accounts or roles.
-- Token remains in page memory and clears on refresh.
-- The non-secret remote endpoint and theme preference may be kept in sessionStorage.
+- Token is kept in the current tab's sessionStorage so a refresh can reconnect automatically; it clears when the tab session ends, Demo is selected, or reauthentication/forgetting is requested.
+- The non-secret remote endpoint and theme preference may also be kept in sessionStorage.
 - Only locale may be kept in localStorage.
 - `change-me` is visibly unsafe.
 - Credential secrets are write-only and private keys are never generated for ingress users.

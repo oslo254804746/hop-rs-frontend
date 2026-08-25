@@ -12,7 +12,7 @@ related_targets: [".impeccable/mocks/overview-operations-rail.png",".impeccable/
 - Job: establish instance/Catalog state, locate one resource or trust record, understand API capability and secret boundaries, complete a safe action.
 - Primary task: navigate from the global operational shell into the asset or host-trust ledger, inspect exact state, and take a guarded action.
 - Proof/content: real `/api/v1` data or explicitly labeled Demo data; never infer health, ownership, audit events, or host-key state absent from the transport.
-- Constraints: static output, Bearer token held in memory, responsive keyboard-accessible UI, no accounts/RBAC, no backend-hosted assets.
+- Constraints: static output, Bearer token scoped to the current tab session, responsive keyboard-accessible UI, no accounts/RBAC, no backend-hosted assets.
 
 ## Chosen direction
 

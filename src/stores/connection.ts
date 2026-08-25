@@ -16,6 +16,7 @@ interface ConnectionState {
 }
 
 const endpointKey = 'hop.control-api-url'
+const tokenKey = 'hop.management-token'
 const savedEndpoint = window.sessionStorage.getItem(endpointKey) ?? ''
 const defaultControlApiBaseUrl = getPanelRuntimeConfig().controlApiBaseUrl
 
@@ -81,6 +82,7 @@ async function connectToHop(endpoint: string, token: string) {
     state.version = body.version
     state.revision = body.catalog_revision
     state.mode = 'live'
+    window.sessionStorage.setItem(tokenKey, normalizedToken)
     if (normalizedEndpoint === '') {
       window.sessionStorage.removeItem(endpointKey)
     } else {
@@ -94,7 +96,21 @@ async function connectToHop(endpoint: string, token: string) {
   }
 }
 
+async function restoreConnection() {
+  const savedToken = window.sessionStorage.getItem(tokenKey) ?? ''
+  if (!savedToken) return false
+
+  try {
+    await connectToHop(state.endpoint, savedToken)
+    return true
+  } catch {
+    window.sessionStorage.removeItem(tokenKey)
+    return false
+  }
+}
+
 function useDemo() {
+  window.sessionStorage.removeItem(tokenKey)
   state.mode = 'demo'
   state.token = ''
   state.insecureToken = false
@@ -104,6 +120,7 @@ function useDemo() {
 }
 
 function requireReauthentication() {
+  window.sessionStorage.removeItem(tokenKey)
   state.mode = 'reauth'
   state.token = ''
   state.insecureToken = false
@@ -131,6 +148,7 @@ export function useConnection() {
     isDemo,
     isLive,
     connectToHop,
+    restoreConnection,
     useDemo,
     requireReauthentication,
     forgetInstance,

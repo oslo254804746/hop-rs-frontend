@@ -47,7 +47,10 @@ test.describe('Hop live connection', () => {
   test.beforeEach(async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'Desktop connection workflow coverage')
     await page.addInitScript(() => {
-      window.sessionStorage.clear()
+      if (window.sessionStorage.getItem('hop.e2e-initialized') !== 'true') {
+        window.sessionStorage.clear()
+        window.sessionStorage.setItem('hop.e2e-initialized', 'true')
+      }
       window.localStorage.setItem('hop.panel-locale', 'en')
     })
     await page.route('**/api/v1/**', async (route) => {
@@ -83,5 +86,20 @@ test.describe('Hop live connection', () => {
     await expect(resources.getByRole('link', { name: 'Credentials 1' })).toBeVisible()
     await expect(resources.getByRole('link', { name: 'Access keys 1' })).toBeVisible()
     await expect(page).toHaveURL(/\/$/)
+  })
+
+  test('restores the authenticated connection after a page refresh', async ({ page }) => {
+    await page.goto('/')
+    const dialog = page.getByRole('dialog')
+
+    await dialog.getByLabel('Webpage management Token').fill('management-token')
+    await dialog.getByRole('button', { name: 'Connect', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'API connected' })).toBeVisible()
+
+    await page.reload()
+
+    await expect(page.getByRole('heading', { name: 'API connected' })).toBeVisible()
+    await expect(dialog).not.toBeVisible()
+    await expect(page.getByText('Connected', { exact: true }).first()).toBeVisible()
   })
 })
