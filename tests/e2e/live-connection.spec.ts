@@ -100,6 +100,6 @@ test.describe('Hop live connection', () => {
 
     await expect(page.getByRole('heading', { name: 'API connected' })).toBeVisible()
     await expect(dialog).not.toBeVisible()
-    await expect(page.getByText('Connected', { exact: true }).first()).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Open instance connection · Connected' })).toBeVisible()
   })
 })
