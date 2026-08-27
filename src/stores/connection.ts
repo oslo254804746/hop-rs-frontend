@@ -119,6 +119,10 @@ function useDemo() {
   state.error = null
 }
 
+function clearError() {
+  state.error = null
+}
+
 function requireReauthentication() {
   window.sessionStorage.removeItem(tokenKey)
   state.mode = 'reauth'
@@ -150,6 +154,7 @@ export function useConnection() {
     connectToHop,
     restoreConnection,
     useDemo,
+    clearError,
     requireReauthentication,
     forgetInstance,
   }

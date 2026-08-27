@@ -168,7 +168,10 @@ async function createAccessKey(input: AccessKeyCreateInput) {
     const created = await createMutation.mutateAsync(input)
     selectedId.value = created.id
     editorMode.value = null
-    successMessage.value = `${created.name} was registered with fingerprint ${created.fingerprint}. Hop did not generate a private key.`
+    successMessage.value = t(
+      '{name} was registered with fingerprint {fingerprint}. Hop did not generate a private key.',
+      { name: created.name, fingerprint: created.fingerprint },
+    )
   } catch (error) {
     operationError.value = errorMessage(error)
   }
@@ -182,7 +185,10 @@ async function updateScope(assetIds: string[] | null) {
   try {
     const updated = await accessMutation.mutateAsync({ id: accessKey.id, assetIds })
     editorMode.value = null
-    successMessage.value = `${updated.name} now has ${scopeLabel(updated).toLocaleLowerCase()}.`
+    successMessage.value = t('{name} now has {scope}.', {
+      name: updated.name,
+      scope: scopeLabel(updated),
+    })
   } catch (error) {
     operationError.value = errorMessage(error)
   }
@@ -195,7 +201,10 @@ async function toggleEnabled() {
   clearOperationState()
   try {
     const updated = await enabledMutation.mutateAsync({ id: accessKey.id, enabled: !accessKey.enabled })
-    successMessage.value = `${updated.name} is now ${updated.enabled ? 'enabled' : 'disabled'}.`
+    successMessage.value = t('{name} is now {state}.', {
+      name: updated.name,
+      state: t(updated.enabled ? 'enabled' : 'disabled'),
+    })
   } catch (error) {
     operationError.value = errorMessage(error)
   }
@@ -210,7 +219,7 @@ async function deleteAccessKey() {
     await deleteMutation.mutateAsync(accessKey.id)
     deleteOpen.value = false
     editorMode.value = null
-    successMessage.value = `${accessKey.name} was deleted.`
+    successMessage.value = t('{name} was deleted.', { name: accessKey.name })
   } catch (error) {
     deleteOpen.value = false
     operationError.value = errorMessage(error)
@@ -312,7 +321,8 @@ async function deleteAccessKey() {
         <div
           v-if="accessKeysQuery.isPending.value"
           class="access-list__loading"
-          aria-label="Loading access keys"
+          :aria-label="t('Loading access keys')"
+          aria-busy="true"
         >
           <span
             v-for="index in 4"
@@ -374,7 +384,7 @@ async function deleteAccessKey() {
         <ul
           v-else
           class="access-list__rows"
-          aria-label="Access keys"
+          :aria-label="t('Access keys')"
         >
           <li
             v-for="accessKey in filteredAccessKeys"
@@ -420,7 +430,7 @@ async function deleteAccessKey() {
 
       <aside
         class="access-detail panel"
-        aria-label="Access key details"
+        :aria-label="t('Access key details')"
       >
         <AccessEditor
           v-if="editorMode === 'create'"
@@ -601,8 +611,8 @@ async function deleteAccessKey() {
       v-model:open="deleteOpen"
       :title="t('Delete access key?')"
       :description="selectedAccessKey
-        ? `${selectedAccessKey.name} will immediately lose ingress access to Hop.`
-        : 'This access key will be deleted.'"
+        ? t('{name} will immediately lose ingress access to Hop.', { name: selectedAccessKey.name })
+        : t('This access key will be deleted.')"
       :confirm-label="t('Delete access key')"
       :busy="deleteMutation.isPending.value"
       @confirm="deleteAccessKey"

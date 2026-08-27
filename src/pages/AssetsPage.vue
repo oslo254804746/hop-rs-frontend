@@ -324,7 +324,7 @@ watch([search, protocol], () => {
           <EmptyState v-if="!assetsQuery.isPending.value && filteredAssets.length === 0" :compact="true" :title="t('No matching assets')" :description="t('Clear filters or add a local SSH or TCP target.')">
             <template #actions><BaseButton variant="secondary" @click="clearFilters"><template #leading><Filter /></template>{{ t('Clear filters') }}</BaseButton></template>
           </EmptyState>
-          <div v-if="assetsQuery.isPending.value" class="loading-rows" aria-label="Loading assets" aria-busy="true"><span /><span /><span /><span /></div>
+          <div v-if="assetsQuery.isPending.value" class="loading-rows" :aria-label="t('Loading assets')" aria-busy="true"><span /><span /><span /><span /></div>
         </div>
 
         <footer class="inventory-footer"><span>{{ t('{visible} of {total} assets', { visible: filteredAssets.length, total: counts.all }) }}</span></footer>
@@ -334,7 +334,7 @@ watch([search, protocol], () => {
         <header class="inspector-heading">
           <span class="inspector-icon" aria-hidden="true"><Server v-if="selectedAsset.protocol === 'ssh'" :size="20" /><Boxes v-else :size="20" /></span>
           <div><h2>{{ selectedAsset.name }}</h2><p>{{ t('{protocol} asset', { protocol: selectedAsset.protocol.toUpperCase() }) }}</p></div>
-          <button class="close-inspector" type="button" aria-label="Close asset details" @click="setSelection(null)"><X :size="18" /></button>
+          <button class="close-inspector" type="button" :aria-label="t('Close asset details')" @click="setSelection(null)"><X :size="18" /></button>
         </header>
 
         <dl class="inspector-fields">

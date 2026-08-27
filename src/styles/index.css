@@ -23,6 +23,7 @@
   --info: #71b7f4;
   --info-soft: #1c3247;
   --focus: #8ccaff;
+  --selection-foreground: #07150f;
   --shadow-layer: 0 18px 40px rgba(1, 7, 15, 0.26);
   --radius-panel: 12px;
   --radius-control: 8px;
@@ -30,6 +31,7 @@
   --content-gutter: clamp(16px, 2vw, 28px);
   color: var(--text);
   background: var(--surface-canvas);
+  color-scheme: dark;
   font-family: var(--font-ui);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -58,7 +60,9 @@
   --info: #276f9f;
   --info-soft: #dcecf7;
   --focus: #136fa7;
+  --selection-foreground: #ffffff;
   --shadow-layer: 0 18px 40px rgba(31, 48, 60, 0.13);
+  color-scheme: light;
 }
 
 *,
@@ -116,7 +120,14 @@ svg {
 
 ::selection {
   background: var(--accent);
-  color: #07150f;
+  color: var(--selection-foreground);
+}
+
+button,
+input,
+textarea,
+select {
+  accent-color: var(--accent);
 }
 
 :focus-visible {

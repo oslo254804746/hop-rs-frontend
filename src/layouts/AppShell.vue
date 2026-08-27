@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/* global HTMLDialogElement */
+/* global HTMLButtonElement, HTMLDialogElement, HTMLInputElement, HTMLElement, document */
 
 import {
   Cable,
@@ -22,7 +22,7 @@ import {
   X,
 } from '@lucide/vue'
 import { useQueryClient } from '@tanstack/vue-query'
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 
 import { getPanelRuntimeConfig } from '@/api'
@@ -58,16 +58,23 @@ const moreActive = computed(() =>
 
 const pageTitle = computed(() => t(String(route.meta.title ?? 'Hop')))
 const connectionDialog = ref<HTMLDialogElement | null>(null)
+const connectionTokenInput = ref<HTMLInputElement | null>(null)
 const mobileMenuOpen = ref(false)
+const mobileMenuButton = ref<HTMLButtonElement | null>(null)
+const mobileMenuCloseButton = ref<HTMLButtonElement | null>(null)
+const mobileMenuPreviousFocus = ref<HTMLElement | null>(null)
 const endpoint = ref(connection.state.endpoint)
 const token = ref('')
 const submitError = ref('')
+const refreshing = ref(false)
 
 function openConnection() {
   submitError.value = ''
+  connection.clearError()
   endpoint.value = connection.state.endpoint || endpoint.value
   token.value = ''
   connectionDialog.value?.showModal()
+  void nextTick(() => connectionTokenInput.value?.focus({ preventScroll: true }))
 }
 
 function closeConnection() {
@@ -95,9 +102,50 @@ async function switchToDemo() {
   await queryClient.resetQueries()
 }
 
-function refresh() {
-  void queryClient.invalidateQueries()
+async function refresh() {
+  if (refreshing.value) return
+  refreshing.value = true
+  try {
+    await queryClient.invalidateQueries()
+  } finally {
+    refreshing.value = false
+  }
 }
+
+async function refreshFromMobileMenu() {
+  await refresh()
+  closeMobileMenu()
+}
+
+function closeMobileMenu() {
+  mobileMenuOpen.value = false
+}
+
+watch(mobileMenuOpen, async (open) => {
+  if (open) {
+    mobileMenuPreviousFocus.value = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
+    await nextTick()
+    mobileMenuCloseButton.value?.focus({ preventScroll: true })
+    return
+  }
+
+  const previousFocus = mobileMenuPreviousFocus.value
+  mobileMenuPreviousFocus.value = null
+  previousFocus?.focus({ preventScroll: true })
+})
+
+watch(
+  () => route.fullPath,
+  () => {
+    if (mobileMenuOpen.value) closeMobileMenu()
+  },
+)
+
+onBeforeUnmount(() => {
+  mobileMenuPreviousFocus.value?.focus({ preventScroll: true })
+})
 
 onMounted(async () => {
   if (connection.state.mode !== 'reauth') return
@@ -113,8 +161,8 @@ onMounted(async () => {
 
 <template>
   <div class="app-frame">
-    <aside class="sidebar" aria-label="Primary navigation">
-      <RouterLink class="brand" to="/" aria-label="Hop overview">
+    <aside class="sidebar" :aria-label="t('Primary navigation')">
+      <RouterLink class="brand" to="/" :aria-label="t('Hop overview')">
         <span class="brand-mark" aria-hidden="true"><Layers3 :size="19" /></span>
         <span class="brand-word">Hop</span>
       </RouterLink>
@@ -135,7 +183,7 @@ onMounted(async () => {
       <button
         class="connection-card"
         type="button"
-        :aria-label="`Open instance connection · ${connection.state.mode === 'live' ? 'Connected' : connection.state.mode === 'reauth' ? 'Authentication required' : 'Demo data · Synthetic workspace'}`"
+        :aria-label="`${t('Open instance connection')} · ${t(connection.state.mode === 'live' ? 'Connected' : connection.state.mode === 'reauth' ? 'Authentication required' : 'Demo data · Synthetic workspace')}`"
         @click="openConnection"
       >
         <span class="connection-line">
@@ -171,19 +219,34 @@ onMounted(async () => {
           <h1>{{ pageTitle }}</h1>
         </div>
         <div class="topbar-actions">
-          <span class="mode-badge" :class="`is-${connection.state.mode}`">
+          <span
+            class="mode-badge"
+            :class="`is-${connection.state.mode}`"
+            role="status"
+            aria-live="polite"
+          >
             <FlaskConical v-if="connection.state.mode === 'demo'" :size="15" aria-hidden="true" />
             <Cable v-else :size="15" aria-hidden="true" />
             {{ t(connection.state.mode === 'demo' ? 'Demo workspace' : connection.state.mode === 'live' ? 'Connected' : 'Re-auth') }}
           </span>
-          <button class="icon-action labeled-action" type="button" aria-label="Refresh data" @click="refresh">
+          <button
+            class="icon-action labeled-action"
+            :class="{ 'is-refreshing': refreshing }"
+            type="button"
+            :aria-label="t('Refresh data')"
+            :title="t('Refresh data')"
+            :disabled="refreshing"
+            :aria-busy="refreshing || undefined"
+            @click="void refresh()"
+          >
             <RefreshCw :size="18" aria-hidden="true" />
             <span>{{ t('Refresh') }}</span>
           </button>
           <button
             class="icon-action labeled-action"
             type="button"
-            :aria-label="`Use ${theme.resolvedTheme.value === 'dark' ? 'light' : 'dark'} theme`"
+            :aria-label="t('Use {theme} theme', { theme: t(theme.resolvedTheme.value === 'dark' ? 'Light' : 'Dark') })"
+            :title="t('Use {theme} theme', { theme: t(theme.resolvedTheme.value === 'dark' ? 'Light' : 'Dark') })"
             @click="theme.toggleTheme"
           >
             <Sun v-if="theme.resolvedTheme.value === 'dark'" :size="18" aria-hidden="true" />
@@ -194,6 +257,7 @@ onMounted(async () => {
             class="icon-action labeled-action"
             type="button"
             :aria-label="locale === 'en' ? '切换到中文' : 'Switch to English'"
+            :title="locale === 'en' ? '切换到中文' : 'Switch to English'"
             @click="toggleLocale"
           >
             <Languages :size="18" aria-hidden="true" />
@@ -219,16 +283,19 @@ onMounted(async () => {
       </main>
     </section>
 
-    <nav class="mobile-dock" aria-label="Mobile navigation">
+    <nav class="mobile-dock" :aria-label="t('Mobile navigation')">
       <RouterLink v-for="item in mobileItems" :key="item.name" :to="item.to" class="dock-link">
         <component :is="item.icon" :size="20" :stroke-width="1.8" aria-hidden="true" />
         <span>{{ item.label }}</span>
       </RouterLink>
       <button
+        ref="mobileMenuButton"
         class="dock-link"
         :class="{ 'is-active': moreActive }"
         type="button"
         :aria-current="moreActive ? 'page' : undefined"
+        :aria-expanded="mobileMenuOpen"
+        aria-controls="mobile-more-menu"
         @click="mobileMenuOpen = true"
       >
         <Menu :size="20" aria-hidden="true" />
@@ -236,25 +303,25 @@ onMounted(async () => {
       </button>
     </nav>
 
-    <div v-if="mobileMenuOpen" class="mobile-sheet-layer" @click.self="mobileMenuOpen = false">
-      <section class="mobile-sheet" aria-label="More navigation">
+    <div v-if="mobileMenuOpen" class="mobile-sheet-layer" @click.self="closeMobileMenu" @keydown.esc="closeMobileMenu">
+      <section id="mobile-more-menu" class="mobile-sheet" :aria-label="t('More navigation')" tabindex="-1">
         <header>
           <strong>{{ t('More') }}</strong>
-          <button class="icon-action" type="button" aria-label="Close menu" @click="mobileMenuOpen = false">
+          <button ref="mobileMenuCloseButton" class="icon-action" type="button" :aria-label="t('Close menu')" @click="closeMobileMenu">
             <X :size="19" aria-hidden="true" />
           </button>
         </header>
-        <RouterLink class="sheet-link" to="/credentials" @click="mobileMenuOpen = false">
+        <RouterLink class="sheet-link" to="/credentials" @click="closeMobileMenu">
           <KeyRound :size="19" aria-hidden="true" /> {{ t('Credentials') }}
         </RouterLink>
-        <RouterLink class="sheet-link" to="/known-hosts" @click="mobileMenuOpen = false">
+        <RouterLink class="sheet-link" to="/known-hosts" @click="closeMobileMenu">
           <Fingerprint :size="19" aria-hidden="true" /> {{ t('Host trust') }}
         </RouterLink>
-        <RouterLink class="sheet-link" to="/configuration" @click="mobileMenuOpen = false">
+        <RouterLink class="sheet-link" to="/configuration" @click="closeMobileMenu">
           <Settings2 :size="19" aria-hidden="true" /> {{ t('Settings') }}
         </RouterLink>
-        <button class="sheet-link compact-only" type="button" @click="mobileMenuOpen = false; refresh()">
-          <RefreshCw :size="19" aria-hidden="true" /> {{ t('Refresh') }}
+        <button class="sheet-link compact-only" type="button" :disabled="refreshing" @click="void refreshFromMobileMenu()">
+          <RefreshCw :size="19" :class="{ 'is-refreshing': refreshing }" aria-hidden="true" /> {{ t('Refresh') }}
         </button>
         <button class="sheet-link compact-only" type="button" @click="theme.toggleTheme">
           <Sun v-if="theme.resolvedTheme.value === 'dark'" :size="19" aria-hidden="true" />
@@ -264,7 +331,7 @@ onMounted(async () => {
         <button class="sheet-link compact-only" type="button" @click="toggleLocale">
           <Languages :size="19" aria-hidden="true" /> {{ locale === 'en' ? '中文' : 'EN' }}
         </button>
-        <button class="sheet-link" type="button" @click="mobileMenuOpen = false; openConnection()">
+        <button class="sheet-link" type="button" @click="closeMobileMenu(); openConnection()">
           <Cable :size="19" aria-hidden="true" /> {{ t('Instance connection') }}
         </button>
         <a v-if="serviceUrl" class="sheet-link" :href="serviceUrl">
@@ -280,14 +347,14 @@ onMounted(async () => {
             <h2>{{ t('Connect to Hop') }}</h2>
             <p>{{ t(isOpenWrt ? 'Enter the webpage management Token from the OpenWrt service configuration.' : 'Enter the webpage management Token from hop.yaml.') }}</p>
           </div>
-          <button class="icon-action" type="button" aria-label="Close connection settings" @click="closeConnection">
+          <button class="icon-action" type="button" :aria-label="t('Close connection settings')" @click="closeConnection">
             <X :size="19" aria-hidden="true" />
           </button>
         </header>
 
         <label class="field">
           <span>{{ t('Webpage management Token') }}</span>
-          <input v-model="token" type="password" autocomplete="off" spellcheck="false" required />
+          <input ref="connectionTokenInput" v-model="token" type="password" autocomplete="off" spellcheck="false" required autofocus />
           <small>{{ t(isOpenWrt ? 'LuCI forwards it only to the loopback Hop API and remembers it for this tab session.' : "The browser sends it to this panel's Origin and remembers it for this tab session.") }}</small>
         </label>
 
@@ -535,6 +602,11 @@ onMounted(async () => {
   color: var(--text-muted);
 }
 
+.icon-action:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
 .labeled-action {
   width: auto;
   padding: 0 9px;
@@ -548,6 +620,14 @@ onMounted(async () => {
 .icon-action:hover {
   background: var(--surface-hover);
   color: var(--text-strong);
+}
+
+.icon-action.is-refreshing svg {
+  animation: spin 800ms linear infinite;
+}
+
+.sheet-link .is-refreshing {
+  animation: spin 800ms linear infinite;
 }
 
 .configure-action {
@@ -913,6 +993,11 @@ onMounted(async () => {
 
   .sheet-link:hover {
     background: var(--surface-hover);
+  }
+
+  .sheet-link:disabled {
+    cursor: wait;
+    opacity: 0.58;
   }
 
   .connection-actions {

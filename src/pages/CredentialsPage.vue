@@ -150,7 +150,9 @@ async function createCredential(input: CredentialWriteInput) {
     const created = await createMutation.mutateAsync(input)
     selectedId.value = created.id
     editorMode.value = null
-    successMessage.value = `${created.name} was created. Its secret will not be shown again.`
+    successMessage.value = t('{name} was created. Its secret will not be shown again.', {
+      name: created.name,
+    })
   } catch (error) {
     operationError.value = errorMessage(error)
   }
@@ -164,7 +166,7 @@ async function rotateCredential(input: CredentialWriteInput) {
   try {
     const updated = await updateMutation.mutateAsync({ id: credential.id, input })
     editorMode.value = null
-    successMessage.value = `${updated.name} now uses the new secret.`
+    successMessage.value = t('{name} now uses the new secret.', { name: updated.name })
   } catch (error) {
     operationError.value = errorMessage(error)
   }
@@ -179,7 +181,7 @@ async function deleteCredential() {
     await deleteMutation.mutateAsync(credential.id)
     deleteOpen.value = false
     editorMode.value = null
-    successMessage.value = `${credential.name} was deleted.`
+    successMessage.value = t('{name} was deleted.', { name: credential.name })
   } catch (error) {
     deleteOpen.value = false
     operationError.value = errorMessage(error)
@@ -281,7 +283,8 @@ async function deleteCredential() {
         <div
           v-if="credentialsQuery.isPending.value"
           class="credentials-list__loading"
-          aria-label="Loading credentials"
+          :aria-label="t('Loading credentials')"
+          aria-busy="true"
         >
           <span
             v-for="index in 4"
@@ -343,7 +346,7 @@ async function deleteCredential() {
         <ul
           v-else
           class="credentials-list__rows"
-          aria-label="Credentials"
+          :aria-label="t('Credentials')"
         >
           <li
             v-for="credential in filteredCredentials"
@@ -388,7 +391,7 @@ async function deleteCredential() {
 
       <aside
         class="credentials-detail panel"
-        aria-label="Credential details"
+        :aria-label="t('Credential details')"
       >
         <CredentialEditor
           v-if="editorMode === 'create'"
@@ -482,7 +485,7 @@ async function deleteCredential() {
                 />
               </li>
               <li>
-                <span>Passphrase</span>
+                <span>{{ t('Passphrase') }}</span>
                 <StatusBadge
                   :label="t(selectedCredential.passphrase === 'configured' ? 'Configured' : 'Not used status')"
                   :tone="selectedCredential.passphrase === 'configured' ? 'success' : 'neutral'"
@@ -529,8 +532,8 @@ async function deleteCredential() {
       v-model:open="deleteOpen"
       :title="t('Delete credential?')"
       :description="selectedCredential
-        ? `${selectedCredential.name} will be removed. Assets that still reference it can make this request fail.`
-        : 'This credential will be removed.'"
+        ? t('{name} will be removed. Assets that still reference it can make this request fail.', { name: selectedCredential.name })
+        : t('This credential will be removed.')"
       :confirm-label="t('Delete credential')"
       :busy="deleteMutation.isPending.value"
       @confirm="deleteCredential"
