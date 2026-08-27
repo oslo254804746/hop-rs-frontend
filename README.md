@@ -84,6 +84,7 @@ npm run test:container
 ```
 
 The production container smoke test builds both repositories and verifies `/`, an SPA deep link, `/api/v1/status` 401/200 behavior, Bearer forwarding, rejection of an unknown API path, upstream failure, and that backend port 8083 is not published.
+Playwright writes its report and test artifacts below `${TMPDIR:-/tmp}/hop-rs-frontend-playwright` by default; set `PLAYWRIGHT_ARTIFACT_DIR`, `PLAYWRIGHT_OUTPUT_DIR`, or `PLAYWRIGHT_REPORT_DIR` to use another writable location.
 
 ## Container image
 

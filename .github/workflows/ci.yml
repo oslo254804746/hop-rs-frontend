@@ -2,6 +2,12 @@ name: CI
 
 on:
   workflow_dispatch:
+    inputs:
+      backend_ref:
+        description: "Optional Hop backend branch or tag to use for the container smoke test"
+        required: false
+        default: ""
+        type: string
   push:
     branches: [dev, master]
     tags: ["v*.*.*"]
@@ -30,8 +36,139 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
 
-  image:
+  container-smoke:
+    name: Production container smoke
     needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout panel
+        uses: actions/checkout@v6
+
+      - name: Set up Node for release checks
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Verify panel release version
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          PANEL_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          panel_version=$(node -p "require('./package.json').version")
+          test "$PANEL_TAG" = "v$panel_version"
+          echo "Verified panel tag $PANEL_TAG matches package version $panel_version"
+
+      - name: Resolve backend ref
+        id: backend_ref
+        shell: bash
+        env:
+          BACKEND_REPOSITORY: oslo254804746/hop-rs
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_REF: ${{ github.ref }}
+          PR_HEAD_REF: ${{ github.head_ref }}
+          REQUESTED_BACKEND_REF: ${{ github.event.inputs.backend_ref || '' }}
+        run: |
+          set -euo pipefail
+
+          remote="https://github.com/${BACKEND_REPOSITORY}.git"
+
+          has_ref() {
+            git ls-remote --exit-code "$remote" "$1" >/dev/null 2>&1
+          }
+
+          emit_ref() {
+            printf 'ref=%s\n' "$1" >>"$GITHUB_OUTPUT"
+            printf 'kind=%s\n' "$2" >>"$GITHUB_OUTPUT"
+            printf 'source=%s\n' "$3" >>"$GITHUB_OUTPUT"
+          }
+
+          requested="$REQUESTED_BACKEND_REF"
+          if [ -n "$requested" ]; then
+            if has_ref "refs/tags/$requested"; then
+              echo "Using explicitly requested backend tag $requested"
+              emit_ref "$requested" tag dispatch
+            elif has_ref "refs/heads/$requested"; then
+              echo "Using explicitly requested backend branch $requested"
+              emit_ref "$requested" branch dispatch
+            else
+              echo "::error::Requested backend ref '$requested' was not found in $BACKEND_REPOSITORY" >&2
+              exit 1
+            fi
+            exit 0
+          fi
+
+          if [ "$EVENT_NAME" = push ] && [[ "$EVENT_REF" == refs/tags/* ]]; then
+            tag="${EVENT_REF#refs/tags/}"
+            if ! has_ref "refs/tags/$tag"; then
+              echo "::error::Release tag '$tag' is present in the panel repository but missing from $BACKEND_REPOSITORY; refusing to fall back to another backend revision" >&2
+              exit 1
+            fi
+            echo "Release build: pairing panel tag $tag with backend tag $tag"
+            emit_ref "$tag" tag release
+            exit 0
+          fi
+
+          candidate=""
+          if [ "$EVENT_NAME" = pull_request ]; then
+            candidate="$PR_HEAD_REF"
+          elif [[ "$EVENT_REF" == refs/heads/* ]]; then
+            candidate="${EVENT_REF#refs/heads/}"
+          fi
+
+          if [ -n "$candidate" ] && has_ref "refs/heads/$candidate"; then
+            echo "Pairing panel ref with backend branch $candidate"
+            emit_ref "$candidate" branch matching
+            exit 0
+          fi
+
+          default_ref=$(git ls-remote --symref "$remote" HEAD 2>/dev/null \
+            | sed -n 's#^ref: refs/heads/\([^[:space:]]*\)[[:space:]]\+HEAD$#\1#p' \
+            | head -n 1)
+          default_ref=${default_ref:-master}
+          if ! has_ref "refs/heads/$default_ref"; then
+            echo "::error::Could not find a usable backend branch: matching '$candidate' and default '$default_ref' are both unavailable" >&2
+            exit 1
+          fi
+
+          if [ -n "$candidate" ]; then
+            echo "::notice::Backend branch '$candidate' is unavailable; using backend default branch '$default_ref' for this non-release smoke test"
+          else
+            echo "::notice::No matching backend branch was supplied; using backend default branch '$default_ref' for this non-release smoke test"
+          fi
+          emit_ref "$default_ref" branch fallback
+
+      - name: Checkout backend
+        uses: actions/checkout@v6
+        with:
+          repository: oslo254804746/hop-rs
+          ref: ${{ steps.backend_ref.outputs.ref }}
+          path: hop-rs
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify release backend tag
+        if: steps.backend_ref.outputs.kind == 'tag'
+        working-directory: hop-rs
+        env:
+          BACKEND_TAG: ${{ steps.backend_ref.outputs.ref }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          checked_out=$(git rev-parse HEAD)
+          tagged=$(git rev-parse "refs/tags/${BACKEND_TAG}^{commit}")
+          test "$checked_out" = "$tagged"
+          echo "Verified backend tag $BACKEND_TAG at $checked_out"
+
+      - name: Run production container smoke test
+        env:
+          HOP_BACKEND_DIR: ${{ github.workspace }}/hop-rs
+        run: npm run test:container
+
+  image:
+    needs: [test, container-smoke]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
