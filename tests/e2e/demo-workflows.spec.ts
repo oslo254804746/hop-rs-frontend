@@ -8,7 +8,7 @@ test.describe('Hop demo workspace', () => {
     await page.setViewportSize({ width: 1440, height: 900 })
   })
 
-  test('starts in an explicit Demo workspace and exposes all seven routes', async ({ page }) => {
+  test('starts in an explicit Demo workspace and exposes all eight routes', async ({ page }) => {
     await openDemo(page)
     await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible()
     await expect(page.getByRole('button', { name: /Demo data.*Synthetic workspace/i })).toBeVisible()
@@ -22,6 +22,7 @@ test.describe('Hop demo workspace', () => {
       ['Access', '/access'],
       ['Sessions', '/sessions'],
       ['Host trust', '/known-hosts'],
+      ['Audit', '/audit'],
       ['Settings', '/configuration'],
     ] as const
 
@@ -166,4 +167,30 @@ test.describe('Hop demo workspace', () => {
     await expect(inspector.getByRole('button', { name: 'Edit asset' })).toHaveCount(0)
     await expect(inspector.getByRole('button', { name: 'Remove asset' })).toHaveCount(0)
   })
+
+  test('probes assets, generates Relay and ProxyJump SSH config, and records audit events', async ({ page }) => {
+    await openDemo(page, '/assets')
+    const assetTable = page.getByRole('table', { name: 'Catalog assets' })
+    await expect(assetTable.getByText('Unprobed').first()).toBeVisible()
+    await page.getByRole('button', { name: 'Probe all', exact: true }).click()
+    await expect(assetTable.getByText('Unprobed')).toHaveCount(0)
+
+    await page.getByRole('button', { name: 'SSH Config', exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByRole('heading', { name: 'SSH Config generator' })).toBeVisible()
+    await expect(dialog).toContainText('User prod-gateway')
+
+    await dialog.getByRole('button', { name: 'ProxyJump · Remote IDE' }).click()
+    await expect(dialog).toContainText('Host hop-gateway')
+    await expect(dialog).toContainText('HostName prod-gateway.hop')
+    await expect(dialog).toContainText('ProxyJump hop-gateway')
+    await dialog.getByRole('button', { name: 'Close SSH Config dialog' }).click()
+
+    await page.getByRole('complementary', { name: 'Primary navigation' })
+      .getByRole('link', { name: 'Audit', exact: true })
+      .click()
+    await expect(page.getByRole('heading', { name: 'Audit', level: 1 })).toBeVisible()
+    await expect(page.getByText('asset.probe_all').first()).toBeVisible()
+  })
 })
+

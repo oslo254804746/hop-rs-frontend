@@ -1,18 +1,12 @@
 import {
   DEMO_HOP_API_CAPABILITIES,
   type AccessKey,
-  type ApplyChange,
-  type ApplyManifestInput,
-  type ApplySummary,
   type Asset,
   type AssetWriteInput,
-  type ConfigSourceStatus,
   type Credential,
   type CredentialWriteInput,
-  type DiffManifestInput,
   type HopApi,
   type RequestOptions,
-  type ValidateManifestInput,
 } from '@/domain'
 import { HopApiError } from '@/api/errors'
 
@@ -38,7 +32,52 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
 
   function incrementRevision(): void {
     state.status.catalogRevision += 1
-    state.configStatus.revision = state.status.catalogRevision
+  }
+
+  function recordAudit(
+    action: string,
+    targetType: string,
+    targetId: string | null,
+    targetLabel: string | null,
+    details?: Record<string, unknown>,
+  ): void {
+    state.auditEvents.unshift({
+      id: `audit-demo-live-${nextId++}`,
+      occurredAt: demoNow(),
+      actorLabel: 'demo-operator',
+      action,
+      targetType,
+      targetId,
+      targetLabel,
+      result: 'success',
+      sourceIp: null,
+      detailsJson: details ? JSON.stringify(details) : null,
+    })
+  }
+
+  function simulateProbe(asset: Asset): Asset {
+    const now = demoNow()
+    if (asset.id === 'asset-router-ui' || asset.hostname.endsWith('.254')) {
+      asset.health = {
+        status: 'failed',
+        checkedAt: now,
+        lastSuccessAt: asset.health?.status === 'healthy' ? asset.health.lastSuccessAt : null,
+        errorCode: 'tcp_connect_failed',
+        errorMessage: `connect ${asset.hostname}:${asset.port}: connection refused`,
+      }
+      return asset
+    }
+    const baseSeed = [...asset.hostname].reduce((acc, ch) => acc + ch.charCodeAt(0), 0)
+    const latencyMs = asset.hostname.startsWith('192.168.')
+      ? (baseSeed % 5) + 2
+      : (baseSeed % 48) + 9
+    asset.health = {
+      status: 'healthy',
+      checkedAt: now,
+      lastSuccessAt: now,
+      latencyMs,
+    }
+    return asset
   }
 
   function requireLocal(
@@ -119,39 +158,6 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
     }
   }
 
-  function manifestChanges(content: string): ApplyChange[] {
-    if (content.trim() === '') return []
-    return [
-      { resourceType: 'asset', name: 'edge-router', action: 'updated' },
-      { resourceType: 'access_key', name: 'ci-deploy', action: 'unchanged' },
-    ]
-  }
-
-  function applySummary(
-    input: DiffManifestInput | ApplyManifestInput,
-    dryRun: boolean,
-  ): ApplySummary {
-    const changes = manifestChanges(input.content)
-    const updated = changes.filter((change) => change.action === 'updated').length
-    const unchanged = changes.filter((change) => change.action === 'unchanged').length
-    const changed = changes.some((change) => change.action !== 'unchanged')
-    const source = state.configStatus.sources.find((item) => item.sourceId === input.sourceId)
-
-    return {
-      sourceId: input.sourceId,
-      baseRevision: state.status.catalogRevision,
-      newRevision: state.status.catalogRevision + Number(changed),
-      generation: (source?.generation ?? 0) + Number(changed),
-      dryRun,
-      created: 0,
-      updated,
-      deleted: 0,
-      orphaned: 0,
-      unchanged,
-      changes,
-    }
-  }
-
   return {
     mode: 'demo',
     capabilities: DEMO_HOP_API_CAPABILITIES,
@@ -182,6 +188,7 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
         protocol: input.protocol,
         hostname: input.hostname,
         port: input.port,
+        displayName: input.displayName?.trim() || null,
         description: input.description ?? null,
         tags: input.tags ?? [],
         credentialId: input.protocol === 'ssh' ? (input.credentialId ?? null) : null,
@@ -192,6 +199,11 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
       }
       state.assets.push(asset)
       incrementRevision()
+      recordAudit('asset.create', 'asset', asset.id, asset.name, {
+        protocol: asset.protocol,
+        hostname: asset.hostname,
+        port: asset.port,
+      })
       return clone(asset)
     },
 
@@ -208,6 +220,10 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
         protocol: input.protocol,
         hostname: input.hostname,
         port: input.port,
+        displayName:
+          input.displayName !== undefined
+            ? (input.displayName?.trim() || null)
+            : (existing!.displayName ?? null),
         description: input.description ?? null,
         tags: input.tags ?? [],
         credentialId: input.protocol === 'ssh' ? (input.credentialId ?? null) : null,
@@ -215,18 +231,52 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
       }
       state.assets[index] = updated
       incrementRevision()
+      recordAudit('asset.update', 'asset', updated.id, updated.name, {
+        protocol: updated.protocol,
+        hostname: updated.hostname,
+        port: updated.port,
+      })
       return clone(updated)
     },
 
     async deleteAsset(id, requestOptions) {
       checkRequest(requestOptions)
       const index = state.assets.findIndex((item) => item.id === id)
-      requireLocal(state.assets[index], 'asset', id)
+      const existing = state.assets[index]
+      requireLocal(existing, 'asset', id)
       state.assets.splice(index, 1)
       for (const key of state.accessKeys) {
         if (key.assetIds !== null) key.assetIds = key.assetIds.filter((assetId) => assetId !== id)
       }
       incrementRevision()
+      recordAudit('asset.delete', 'asset', id, existing?.name ?? id)
+    },
+
+    async probeAssets(requestOptions) {
+      checkRequest(requestOptions)
+      for (const asset of state.assets) {
+        simulateProbe(asset)
+      }
+      const healthy = state.assets.filter((asset) => asset.health?.status === 'healthy').length
+      const failed = state.assets.filter((asset) => asset.health?.status === 'failed').length
+      recordAudit('asset.probe_all', 'asset', null, 'all', {
+        total: state.assets.length,
+        healthy,
+        failed,
+      })
+      return clone(state.assets)
+    },
+
+    async probeAsset(id, requestOptions) {
+      checkRequest(requestOptions)
+      const asset = state.assets.find((item) => item.id === id)
+      if (!asset) throw apiError(404, 'not_found', 'resource not found')
+      simulateProbe(asset)
+      recordAudit('asset.probe', 'asset', asset.id, asset.name, {
+        status: asset.health?.status ?? 'unknown',
+        latency_ms: asset.health?.status === 'healthy' ? asset.health.latencyMs : null,
+      })
+      return clone(asset)
     },
 
     async listCredentials(requestOptions) {
@@ -241,6 +291,10 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
       credential.management = { mode: 'local' }
       state.credentials.push(credential)
       incrementRevision()
+      recordAudit('credential.create', 'credential', credential.id, credential.name, {
+        username: credential.username,
+        auth_type: credential.authType,
+      })
       return clone(credential)
     },
 
@@ -253,13 +307,18 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
       const credential = buildCredential(id, input, existing)
       state.credentials[index] = credential
       incrementRevision()
+      recordAudit('credential.update', 'credential', credential.id, credential.name, {
+        username: credential.username,
+        auth_type: credential.authType,
+      })
       return clone(credential)
     },
 
     async deleteCredential(id, requestOptions) {
       checkRequest(requestOptions)
       const index = state.credentials.findIndex((item) => item.id === id)
-      requireLocal(state.credentials[index], 'credential', id)
+      const existing = state.credentials[index]
+      requireLocal(existing, 'credential', id)
       if (state.assets.some((asset) => asset.credentialId === id)) {
         throw apiError(
           409,
@@ -269,6 +328,7 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
       }
       state.credentials.splice(index, 1)
       incrementRevision()
+      recordAudit('credential.delete', 'credential', id, existing?.name ?? id)
     },
 
     async listAccessKeys(requestOptions) {
@@ -291,6 +351,10 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
       }
       state.accessKeys.unshift(accessKey)
       incrementRevision()
+      recordAudit('access_key.create', 'access_key', accessKey.id, accessKey.name, {
+        fingerprint: accessKey.fingerprint,
+        access_mode: accessKey.accessMode,
+      })
       return clone(accessKey)
     },
 
@@ -302,6 +366,7 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
         key!.enabled = enabled
         incrementRevision()
       }
+      recordAudit('access_key.set_enabled', 'access_key', key!.id, key!.name, { enabled })
       return clone(key!)
     },
 
@@ -313,15 +378,20 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
       key!.accessMode = assetIds === null ? 'all' : 'restricted'
       key!.assetIds = assetIds === null ? null : [...new Set(assetIds)].sort()
       incrementRevision()
+      recordAudit('access_key.set_access', 'access_key', key!.id, key!.name, {
+        access_mode: key!.accessMode,
+      })
       return clone(key!)
     },
 
     async deleteAccessKey(id, requestOptions) {
       checkRequest(requestOptions)
       const index = state.accessKeys.findIndex((item) => item.id === id)
-      requireLocal(state.accessKeys[index], 'access_key', id)
+      const existing = state.accessKeys[index]
+      requireLocal(existing, 'access_key', id)
       state.accessKeys.splice(index, 1)
       incrementRevision()
+      recordAudit('access_key.delete', 'access_key', id, existing?.name ?? id)
     },
 
     async listSessions(requestOptions) {
@@ -337,6 +407,7 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
         session.status = 'terminated'
         session.error = 'terminated by control API'
         session.endedAt = demoNow()
+        recordAudit('session.terminate', 'session', id, session.assetName ?? id)
       }
       return { id, terminated }
     },
@@ -356,43 +427,18 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
       )
       if (index < 0) throw apiError(404, 'not_found', 'resource not found')
       state.knownHosts.splice(index, 1)
+      recordAudit(
+        'known_host.reset',
+        'known_host',
+        null,
+        `${identity.hostname}:${identity.port} (${identity.keyType})`,
+      )
     },
 
-    async validateManifest(input, requestOptions) {
+    async listAuditEvents(requestOptions) {
       checkRequest(requestOptions)
-      validateManifest(input)
-      return { valid: true, offline: input.offline ?? false }
+      return clone(state.auditEvents)
     },
-
-    async diffManifest(input, requestOptions) {
-      checkRequest(requestOptions)
-      validateManifest(input)
-      return applySummary(input, true)
-    },
-
-    async applyManifest(input, requestOptions) {
-      checkRequest(requestOptions)
-      validateManifest(input)
-      if (input.baseRevision !== state.status.catalogRevision) {
-        throw new HopApiError(
-          `base revision ${input.baseRevision} does not match current revision ${state.status.catalogRevision}`,
-          {
-            kind: 'http',
-            code: 'revision_conflict',
-            status: 409,
-            path: 'catalog_revision',
-          },
-        )
-      }
-      const summary = applySummary(input, input.dryRun ?? false)
-      if (!summary.dryRun && summary.newRevision !== summary.baseRevision) {
-        state.status.catalogRevision = summary.newRevision
-        state.configStatus.revision = summary.newRevision
-        upsertSuccessfulSource(state, input.sourceId, summary)
-      }
-      return clone(summary)
-    },
-
   }
 }
 
@@ -419,47 +465,4 @@ function validateAssetIds(state: DemoFixtures, assetIds: string[] | null | undef
       throw apiError(422, 'validation_failed', `unknown asset id: ${id}`)
     }
   }
-}
-
-function validateManifest(input: ValidateManifestInput): void {
-  if (!input.content.includes('api_version')) {
-    throw apiError(500, 'apply_failed', 'invalid manifest syntax or field type')
-  }
-  if (!input.content.includes('hop/v1alpha1')) {
-    throw new HopApiError('unsupported api_version; expected hop/v1alpha1', {
-      kind: 'http',
-      code: 'unsupported_api_version',
-      status: 422,
-      path: 'api_version',
-    })
-  }
-}
-
-function upsertSuccessfulSource(
-  state: DemoFixtures,
-  sourceId: string,
-  summary: ApplySummary,
-): void {
-  let source: ConfigSourceStatus | undefined = state.configStatus.sources.find(
-    (item) => item.sourceId === sourceId,
-  )
-  if (source === undefined) {
-    source = {
-      sourceId,
-      generation: summary.generation,
-      lastSuccessAt: demoNow(),
-      lastSuccessRevision: summary.newRevision,
-      lastErrorAt: null,
-      lastErrorCode: null,
-      lastErrorMessage: null,
-    }
-    state.configStatus.sources.push(source)
-    return
-  }
-  source.generation = summary.generation
-  source.lastSuccessAt = demoNow()
-  source.lastSuccessRevision = summary.newRevision
-  source.lastErrorAt = null
-  source.lastErrorCode = null
-  source.lastErrorMessage = null
 }

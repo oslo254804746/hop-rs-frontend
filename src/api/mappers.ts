@@ -1,40 +1,32 @@
 import type {
   AccessKey,
   AccessKeyCreateInput,
-  ApplyManifestInput,
-  ApplySummary,
   Asset,
+  AssetHealth,
   AssetWriteInput,
-  CatalogStatus,
-  ConfigSourceStatus,
+  AuditEvent,
   Credential,
   CredentialWriteInput,
-  DiffManifestInput,
   InstanceStatus,
   KnownHost,
   KnownHostIdentity,
   Session,
-  ValidateManifestInput,
 } from '@/domain'
 
 import { credentialAuthTypeFromApi, credentialAuthTypeToApi } from './auth-type'
 import type {
   WireAccessKey,
   WireAccessKeyCreateRequest,
-  WireApplyRequest,
-  WireApplySummary,
   WireAsset,
+  WireAssetHealth,
   WireAssetWriteRequest,
-  WireCatalogStatus,
-  WireConfigSourceStatus,
+  WireAuditEvent,
   WireCredential,
   WireCredentialWriteRequest,
-  WireDiffRequest,
   WireKnownHost,
   WireKnownHostResetRequest,
   WireSession,
   WireStatusResponse,
-  WireValidateRequest,
 } from './wire-types'
 
 export function mapStatus(value: WireStatusResponse): InstanceStatus {
@@ -42,6 +34,31 @@ export function mapStatus(value: WireStatusResponse): InstanceStatus {
     status: value.status,
     version: value.version,
     catalogRevision: value.catalog_revision,
+    ...(value.ssh_listen !== undefined ? { sshListen: value.ssh_listen } : {}),
+  }
+}
+
+export function mapAssetHealth(value?: WireAssetHealth): AssetHealth {
+  if (!value || value.status === 'unknown') {
+    return {
+      status: 'unknown',
+      checkedAt: value?.checked_at ?? null,
+    }
+  }
+  if (value.status === 'healthy') {
+    return {
+      status: 'healthy',
+      checkedAt: value.checked_at,
+      lastSuccessAt: value.last_success_at,
+      latencyMs: value.latency_ms,
+    }
+  }
+  return {
+    status: 'failed',
+    checkedAt: value.checked_at,
+    lastSuccessAt: value.last_success_at,
+    errorCode: value.error_code,
+    errorMessage: value.error_message,
   }
 }
 
@@ -52,12 +69,14 @@ export function mapAsset(value: WireAsset): Asset {
     protocol: value.protocol,
     hostname: value.hostname,
     port: value.port,
+    displayName: value.display_name ?? null,
     description: value.description,
     tags: value.tags,
     credentialId: value.credential_id,
     createdAt: value.created_at,
     updatedAt: value.updated_at,
     management: { mode: value.ownership },
+    health: mapAssetHealth(value.health),
   }
 }
 
@@ -67,6 +86,7 @@ export function mapAssetInput(value: AssetWriteInput): WireAssetWriteRequest {
     protocol: value.protocol,
     hostname: value.hostname,
     port: value.port,
+    ...(value.displayName !== undefined ? { display_name: value.displayName } : {}),
     ...(value.description !== undefined ? { description: value.description } : {}),
     ...(value.tags !== undefined ? { tags: value.tags } : {}),
     ...(value.credentialId !== undefined ? { credential_id: value.credentialId } : {}),
@@ -153,76 +173,17 @@ export function mapKnownHostResetInput(value: KnownHostIdentity): WireKnownHostR
   }
 }
 
-export function mapConfigSource(value: WireConfigSourceStatus): ConfigSourceStatus {
+export function mapAuditEvent(value: WireAuditEvent): AuditEvent {
   return {
-    sourceId: value.source_id,
-    generation: value.generation,
-    lastSuccessAt: value.last_success_at,
-    lastSuccessRevision: value.last_success_revision,
-    lastErrorAt: value.last_error_at,
-    lastErrorCode: value.last_error_code,
-    lastErrorMessage: value.last_error_message,
-  }
-}
-
-export function mapCatalogStatus(value: WireCatalogStatus): CatalogStatus {
-  return {
-    revision: value.revision,
-    manifestApiVersion: value.manifest_api_version,
-    sources: value.sources.map(mapConfigSource),
-    orphans: value.orphans.map((orphan) => ({
-      resourceType: orphan.resource_type,
-      sourceId: orphan.source_id,
-      sourceKey: orphan.source_key,
-      orphanedAt: orphan.orphaned_at,
-    })),
-  }
-}
-
-export function mapValidateInput(value: ValidateManifestInput): WireValidateRequest {
-  return {
-    content: value.content,
-    format: value.format,
-    ...(value.offline !== undefined ? { offline: value.offline } : {}),
-  }
-}
-
-export function mapDiffInput(value: DiffManifestInput): WireDiffRequest {
-  return {
-    content: value.content,
-    format: value.format,
-    source_id: value.sourceId,
-    ...(value.prune !== undefined ? { prune: value.prune } : {}),
-  }
-}
-
-export function mapApplyInput(value: ApplyManifestInput): WireApplyRequest {
-  return {
-    content: value.content,
-    format: value.format,
-    source_id: value.sourceId,
-    base_revision: value.baseRevision,
-    ...(value.prune !== undefined ? { prune: value.prune } : {}),
-    ...(value.dryRun !== undefined ? { dry_run: value.dryRun } : {}),
-  }
-}
-
-export function mapApplySummary(value: WireApplySummary): ApplySummary {
-  return {
-    sourceId: value.source_id,
-    baseRevision: value.base_revision,
-    newRevision: value.new_revision,
-    generation: value.generation,
-    dryRun: value.dry_run,
-    created: value.created,
-    updated: value.updated,
-    deleted: value.deleted,
-    orphaned: value.orphaned,
-    unchanged: value.unchanged,
-    changes: value.changes.map((change) => ({
-      resourceType: change.resource_type,
-      name: change.name,
-      action: change.action,
-    })),
+    id: value.id,
+    occurredAt: value.occurred_at,
+    actorLabel: value.actor_label,
+    action: value.action,
+    targetType: value.target_type,
+    targetId: value.target_id,
+    targetLabel: value.target_label,
+    result: value.result,
+    sourceIp: value.source_ip,
+    detailsJson: value.details_json,
   }
 }

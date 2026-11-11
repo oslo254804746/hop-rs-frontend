@@ -42,6 +42,7 @@ test.describe('390px mobile workspace', () => {
 
     const more = page.getByRole('region', { name: 'More navigation' })
     await expect(more).toBeVisible()
+    await expect(more.getByRole('link', { name: 'Audit', exact: true })).toBeVisible()
     await more.getByRole('link', { name: 'Credentials', exact: true }).click()
     await expect(page).toHaveURL(/\/credentials$/)
     await expect(page.getByRole('heading', { name: 'Credentials', level: 1 }).first()).toBeVisible()

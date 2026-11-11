@@ -1,45 +1,40 @@
 import {
   REMOTE_HOP_API_CAPABILITIES,
   type AccessKey,
-  type ApplySummary,
   type Asset,
+  type AuditEvent,
   type Credential,
   type HopApi,
   type KnownHost,
   type RequestOptions,
   type Session,
   type TerminateSessionResult,
-  type ValidationResult,
 } from '@/domain'
 
 import { errorFromResponse, HopApiError, toHopApiError } from './errors'
 import {
   mapAccessKey,
   mapAccessKeyInput,
-  mapApplyInput,
-  mapApplySummary,
   mapAsset,
   mapAssetInput,
+  mapAuditEvent,
   mapCredential,
   mapCredentialInput,
-  mapDiffInput,
   mapKnownHost,
   mapKnownHostResetInput,
   mapSession,
   mapStatus,
-  mapValidateInput,
 } from './mappers'
 import type {
   WireAccessKey,
-  WireApplySummary,
   WireAsset,
+  WireAuditEvent,
   WireCredential,
   WireKnownHost,
   WireRevisionResponse,
   WireSession,
   WireStatusResponse,
   WireTerminateResponse,
-  WireValidationResponse,
 } from './wire-types'
 
 export type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
@@ -169,6 +164,25 @@ export function createFetchHopApi(options: FetchHopApiOptions): HopApi {
       })
     },
 
+    async probeAssets(requestOptions): Promise<Asset[]> {
+      const response = await request<WireAsset[]>('/assets/probe', {
+        method: 'POST',
+        body: {},
+        ...signalOptions(requestOptions),
+      })
+      return response.map(mapAsset)
+    },
+
+    async probeAsset(id, requestOptions): Promise<Asset> {
+      return mapAsset(
+        await request<WireAsset>(`/assets/${encodeURIComponent(id)}/probe`, {
+          method: 'POST',
+          body: {},
+          ...signalOptions(requestOptions),
+        }),
+      )
+    },
+
     async listCredentials(requestOptions): Promise<Credential[]> {
       const response = await request<WireCredential[]>('/credentials', {
         ...signalOptions(requestOptions),
@@ -281,33 +295,11 @@ export function createFetchHopApi(options: FetchHopApiOptions): HopApi {
       })
     },
 
-    async validateManifest(input, requestOptions): Promise<ValidationResult> {
-      return request<WireValidationResponse>('/config/validate', {
-        method: 'POST',
-        body: mapValidateInput(input),
+    async listAuditEvents(requestOptions): Promise<AuditEvent[]> {
+      const response = await request<WireAuditEvent[]>('/audit-events', {
         ...signalOptions(requestOptions),
       })
+      return response.map(mapAuditEvent)
     },
-
-    async diffManifest(input, requestOptions): Promise<ApplySummary> {
-      return mapApplySummary(
-        await request<WireApplySummary>('/config/diff', {
-          method: 'POST',
-          body: mapDiffInput(input),
-          ...signalOptions(requestOptions),
-        }),
-      )
-    },
-
-    async applyManifest(input, requestOptions): Promise<ApplySummary> {
-      return mapApplySummary(
-        await request<WireApplySummary>('/config/apply', {
-          method: 'POST',
-          body: mapApplyInput(input),
-          ...signalOptions(requestOptions),
-        }),
-      )
-    },
-
   }
 }

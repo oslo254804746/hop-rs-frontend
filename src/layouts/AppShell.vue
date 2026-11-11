@@ -10,6 +10,7 @@ import {
   KeyRound,
   Languages,
   Layers3,
+  ListChecks,
   Menu,
   MonitorUp,
   Moon,
@@ -18,6 +19,7 @@ import {
   Server,
   Settings2,
   ShieldCheck,
+  SquareTerminal,
   Sun,
   X,
 } from '@lucide/vue'
@@ -26,9 +28,10 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 
 import { getPanelRuntimeConfig } from '@/api'
+import { useI18n } from '@/i18n'
 import { useConnection } from '@/stores/connection'
 import { useTheme } from '@/stores/theme'
-import { useI18n } from '@/i18n'
+import { parseSshListenPort } from '@/utils/ssh-config'
 
 const route = useRoute()
 const queryClient = useQueryClient()
@@ -46,17 +49,25 @@ const navItems = computed(() => [
   { name: 'access', label: t('Access'), to: '/access', icon: ShieldCheck },
   { name: 'sessions', label: t('Sessions'), to: '/sessions', icon: MonitorUp },
   { name: 'known-hosts', label: t('Host trust'), to: '/known-hosts', icon: Fingerprint },
+  { name: 'audit', label: t('Audit'), to: '/audit', icon: ListChecks },
   { name: 'configuration', label: t('Settings'), to: '/configuration', icon: Settings2 },
 ])
 
-const mobileItems = computed(() => navItems.value.filter((item) =>
-  ['overview', 'assets', 'access', 'sessions'].includes(item.name),
-))
+const mobileItems = computed(() =>
+  navItems.value.filter((item) =>
+    ['overview', 'assets', 'access', 'sessions'].includes(item.name),
+  ),
+)
 const moreActive = computed(() =>
-  ['credentials', 'known-hosts', 'configuration'].includes(String(route.name)),
+  ['credentials', 'known-hosts', 'audit', 'configuration'].includes(String(route.name)),
 )
 
 const pageTitle = computed(() => t(String(route.meta.title ?? 'Hop')))
+const sshPortPill = computed(() => {
+  if (!connection.state.sshListen) return null
+  return `SSH :${parseSshListenPort(connection.state.sshListen)}`
+})
+
 const connectionDialog = ref<HTMLDialogElement | null>(null)
 const connectionTokenInput = ref<HTMLInputElement | null>(null)
 const mobileMenuOpen = ref(false)
@@ -86,7 +97,8 @@ async function submitConnection() {
   try {
     await connection.connectToHop(endpoint.value, token.value)
   } catch (error) {
-    submitError.value = error instanceof Error ? error.message : 'The instance could not be reached.'
+    submitError.value =
+      error instanceof Error ? error.message : 'The instance could not be reached.'
     return
   }
 
@@ -123,9 +135,8 @@ function closeMobileMenu() {
 
 watch(mobileMenuOpen, async (open) => {
   if (open) {
-    mobileMenuPreviousFocus.value = document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null
+    mobileMenuPreviousFocus.value =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
     await nextTick()
     mobileMenuCloseButton.value?.focus({ preventScroll: true })
     return
@@ -163,8 +174,11 @@ onMounted(async () => {
   <div class="app-frame">
     <aside class="sidebar" :aria-label="t('Primary navigation')">
       <RouterLink class="brand" to="/" :aria-label="t('Hop overview')">
-        <span class="brand-mark" aria-hidden="true"><Layers3 :size="19" /></span>
-        <span class="brand-word">Hop</span>
+        <span class="brand-mark" aria-hidden="true"><Layers3 :size="17" /></span>
+        <span class="brand-copy">
+          <span class="brand-word">Hop</span>
+          <small class="brand-tag mono">SSH Relay</small>
+        </span>
       </RouterLink>
 
       <nav class="primary-nav">
@@ -175,7 +189,7 @@ onMounted(async () => {
           class="nav-link"
           :aria-label="item.label"
         >
-          <component :is="item.icon" :size="19" :stroke-width="1.8" aria-hidden="true" />
+          <component :is="item.icon" :size="17" :stroke-width="1.85" aria-hidden="true" />
           <span>{{ item.label }}</span>
         </RouterLink>
       </nav>
@@ -205,28 +219,33 @@ onMounted(async () => {
         <span class="connection-detail">
           {{ connection.state.mode === 'demo' ? t('Synthetic workspace') : connection.state.endpoint || t('This panel · same origin') }}
         </span>
-        <span class="connection-version tabular">
-          {{ connection.state.version ?? (connection.state.mode === 'reauth' ? t('Token required') : 'v0.2 preview') }}
+        <span class="connection-version mono tabular">
+          {{ connection.state.version ?? (connection.state.mode === 'reauth' ? t('Token required') : 'v0.2.9') }}
         </span>
-        <ChevronRight class="connection-arrow" :size="17" aria-hidden="true" />
+        <ChevronRight class="connection-arrow" :size="16" aria-hidden="true" />
       </button>
     </aside>
 
     <section class="workspace">
       <header class="topbar">
         <div class="topbar-title">
-          <span class="mobile-brand" aria-hidden="true">Hop</span>
-          <h1>{{ pageTitle }}</h1>
+          <span class="topbar-brand" aria-hidden="true">Hop</span>
+          <span class="topbar-sep" aria-hidden="true">/</span>
+          <span class="topbar-crumb">{{ pageTitle }}</span>
         </div>
         <div class="topbar-actions">
+          <span v-if="sshPortPill" class="ssh-pill mono tabular">
+            <SquareTerminal :size="13" aria-hidden="true" />
+            {{ sshPortPill }}
+          </span>
           <span
             class="mode-badge"
             :class="`is-${connection.state.mode}`"
             role="status"
             aria-live="polite"
           >
-            <FlaskConical v-if="connection.state.mode === 'demo'" :size="15" aria-hidden="true" />
-            <Cable v-else :size="15" aria-hidden="true" />
+            <FlaskConical v-if="connection.state.mode === 'demo'" :size="14" aria-hidden="true" />
+            <Cable v-else :size="14" aria-hidden="true" />
             {{ t(connection.state.mode === 'demo' ? 'Demo workspace' : connection.state.mode === 'live' ? 'Connected' : 'Re-auth') }}
           </span>
           <button
@@ -239,7 +258,7 @@ onMounted(async () => {
             :aria-busy="refreshing || undefined"
             @click="void refresh()"
           >
-            <RefreshCw :size="18" aria-hidden="true" />
+            <RefreshCw :size="16" aria-hidden="true" />
             <span>{{ t('Refresh') }}</span>
           </button>
           <button
@@ -249,8 +268,8 @@ onMounted(async () => {
             :title="t('Use {theme} theme', { theme: t(theme.resolvedTheme.value === 'dark' ? 'Light' : 'Dark') })"
             @click="theme.toggleTheme"
           >
-            <Sun v-if="theme.resolvedTheme.value === 'dark'" :size="18" aria-hidden="true" />
-            <Moon v-else :size="18" aria-hidden="true" />
+            <Sun v-if="theme.resolvedTheme.value === 'dark'" :size="16" aria-hidden="true" />
+            <Moon v-else :size="16" aria-hidden="true" />
             <span>{{ t(theme.resolvedTheme.value === 'dark' ? 'Light' : 'Dark') }}</span>
           </button>
           <button
@@ -260,15 +279,15 @@ onMounted(async () => {
             :title="locale === 'en' ? '切换到中文' : 'Switch to English'"
             @click="toggleLocale"
           >
-            <Languages :size="18" aria-hidden="true" />
+            <Languages :size="16" aria-hidden="true" />
             <span>{{ locale === 'en' ? '中文' : 'EN' }}</span>
           </button>
           <button class="configure-action" type="button" @click="openConnection">
-            <Settings2 :size="17" aria-hidden="true" />
+            <Settings2 :size="15" aria-hidden="true" />
             {{ t('Instance') }}
           </button>
           <a v-if="serviceUrl" class="configure-action" :href="serviceUrl">
-            <Router :size="17" aria-hidden="true" />
+            <Router :size="15" aria-hidden="true" />
             {{ t('Router settings') }}
           </a>
         </div>
@@ -285,7 +304,7 @@ onMounted(async () => {
 
     <nav class="mobile-dock" :aria-label="t('Mobile navigation')">
       <RouterLink v-for="item in mobileItems" :key="item.name" :to="item.to" class="dock-link">
-        <component :is="item.icon" :size="20" :stroke-width="1.8" aria-hidden="true" />
+        <component :is="item.icon" :size="19" :stroke-width="1.8" aria-hidden="true" />
         <span>{{ item.label }}</span>
       </RouterLink>
       <button
@@ -298,7 +317,7 @@ onMounted(async () => {
         aria-controls="mobile-more-menu"
         @click="mobileMenuOpen = true"
       >
-        <Menu :size="20" aria-hidden="true" />
+        <Menu :size="19" aria-hidden="true" />
         <span>{{ t('More') }}</span>
       </button>
     </nav>
@@ -308,34 +327,37 @@ onMounted(async () => {
         <header>
           <strong>{{ t('More') }}</strong>
           <button ref="mobileMenuCloseButton" class="icon-action" type="button" :aria-label="t('Close menu')" @click="closeMobileMenu">
-            <X :size="19" aria-hidden="true" />
+            <X :size="18" aria-hidden="true" />
           </button>
         </header>
         <RouterLink class="sheet-link" to="/credentials" @click="closeMobileMenu">
-          <KeyRound :size="19" aria-hidden="true" /> {{ t('Credentials') }}
+          <KeyRound :size="18" aria-hidden="true" /> {{ t('Credentials') }}
         </RouterLink>
         <RouterLink class="sheet-link" to="/known-hosts" @click="closeMobileMenu">
-          <Fingerprint :size="19" aria-hidden="true" /> {{ t('Host trust') }}
+          <Fingerprint :size="18" aria-hidden="true" /> {{ t('Host trust') }}
+        </RouterLink>
+        <RouterLink class="sheet-link" to="/audit" @click="closeMobileMenu">
+          <ListChecks :size="18" aria-hidden="true" /> {{ t('Audit') }}
         </RouterLink>
         <RouterLink class="sheet-link" to="/configuration" @click="closeMobileMenu">
-          <Settings2 :size="19" aria-hidden="true" /> {{ t('Settings') }}
+          <Settings2 :size="18" aria-hidden="true" /> {{ t('Settings') }}
         </RouterLink>
         <button class="sheet-link compact-only" type="button" :disabled="refreshing" @click="void refreshFromMobileMenu()">
-          <RefreshCw :size="19" :class="{ 'is-refreshing': refreshing }" aria-hidden="true" /> {{ t('Refresh') }}
+          <RefreshCw :size="18" :class="{ 'is-refreshing': refreshing }" aria-hidden="true" /> {{ t('Refresh') }}
         </button>
         <button class="sheet-link compact-only" type="button" @click="theme.toggleTheme">
-          <Sun v-if="theme.resolvedTheme.value === 'dark'" :size="19" aria-hidden="true" />
-          <Moon v-else :size="19" aria-hidden="true" />
+          <Sun v-if="theme.resolvedTheme.value === 'dark'" :size="18" aria-hidden="true" />
+          <Moon v-else :size="18" aria-hidden="true" />
           {{ t(theme.resolvedTheme.value === 'dark' ? 'Light' : 'Dark') }}
         </button>
         <button class="sheet-link compact-only" type="button" @click="toggleLocale">
-          <Languages :size="19" aria-hidden="true" /> {{ locale === 'en' ? '中文' : 'EN' }}
+          <Languages :size="18" aria-hidden="true" /> {{ locale === 'en' ? '中文' : 'EN' }}
         </button>
         <button class="sheet-link" type="button" @click="closeMobileMenu(); openConnection()">
-          <Cable :size="19" aria-hidden="true" /> {{ t('Instance connection') }}
+          <Cable :size="18" aria-hidden="true" /> {{ t('Instance connection') }}
         </button>
         <a v-if="serviceUrl" class="sheet-link" :href="serviceUrl">
-          <Router :size="19" aria-hidden="true" /> {{ t('Router settings') }}
+          <Router :size="18" aria-hidden="true" /> {{ t('Router settings') }}
         </a>
       </section>
     </div>
@@ -348,7 +370,7 @@ onMounted(async () => {
             <p>{{ t(isOpenWrt ? 'Enter the webpage management Token from the OpenWrt service configuration.' : 'Enter the webpage management Token from hop.yaml.') }}</p>
           </div>
           <button class="icon-action" type="button" :aria-label="t('Close connection settings')" @click="closeConnection">
-            <X :size="19" aria-hidden="true" />
+            <X :size="18" aria-hidden="true" />
           </button>
         </header>
 
@@ -377,11 +399,11 @@ onMounted(async () => {
 
         <div class="connection-actions">
           <button class="button-secondary" type="button" @click="switchToDemo">
-            <FlaskConical :size="17" aria-hidden="true" /> {{ t('Use demo data') }}
+            <FlaskConical :size="16" aria-hidden="true" /> {{ t('Use demo data') }}
           </button>
           <button class="button-primary" type="submit" :disabled="connection.state.connecting">
-            <RefreshCw v-if="connection.state.connecting" class="spin" :size="17" aria-hidden="true" />
-            <Cable v-else :size="17" aria-hidden="true" />
+            <RefreshCw v-if="connection.state.connecting" class="spin" :size="16" aria-hidden="true" />
+            <Cable v-else :size="16" aria-hidden="true" />
             {{ t(connection.state.connecting ? 'Connecting…' : 'Connect') }}
           </button>
         </div>
@@ -408,10 +430,11 @@ onMounted(async () => {
 
 .brand {
   display: flex;
-  height: 68px;
+  height: 58px;
   align-items: center;
-  gap: 10px;
-  padding: 0 20px;
+  gap: 11px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line-subtle);
   color: var(--text-strong);
   text-decoration: none;
 }
@@ -420,35 +443,52 @@ onMounted(async () => {
   display: grid;
   width: 30px;
   height: 30px;
+  flex: 0 0 auto;
   place-items: center;
-  border: 1px solid var(--line-strong);
-  border-radius: 9px;
+  border: 1px solid color-mix(in srgb, var(--accent) 36%, var(--line-strong));
+  border-radius: 8px;
+  background: var(--accent-soft);
   color: var(--accent-strong);
 }
 
+.brand-copy {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 7px;
+}
+
 .brand-word {
-  font-size: 20px;
-  font-weight: 680;
-  letter-spacing: -0.03em;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+.brand-tag {
+  color: var(--text-muted);
+  font-size: 10.5px;
+  font-weight: 550;
 }
 
 .primary-nav {
   display: grid;
-  gap: 4px;
+  gap: 2px;
   padding: 10px 10px;
 }
 
 .nav-link {
   position: relative;
   display: flex;
-  min-height: 46px;
+  min-height: 38px;
   align-items: center;
-  gap: 13px;
-  padding: 0 13px;
-  border-radius: 8px;
+  gap: 11px;
+  padding: 0 11px;
+  border-radius: 7px;
   color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 550;
   text-decoration: none;
-  transition: color 160ms ease, background 160ms ease;
+  transition: color 140ms ease, background-color 140ms ease;
 }
 
 .nav-link:hover {
@@ -459,51 +499,50 @@ onMounted(async () => {
 .nav-link.router-link-exact-active {
   color: var(--text-strong);
   background: var(--surface-selected);
+  font-weight: 620;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
-.nav-link.router-link-exact-active::before {
-  position: absolute;
-  inset: 10px auto 10px -10px;
-  width: 2px;
-  border-radius: 2px;
-  background: var(--accent);
-  content: '';
+.nav-link.router-link-exact-active svg {
+  color: var(--accent-strong);
 }
 
 .connection-card {
   position: relative;
   display: grid;
   gap: 3px;
-  min-height: 104px;
-  margin: auto 10px 14px;
-  padding: 14px 36px 14px 14px;
+  margin: auto 10px 12px;
+  padding: 11px 32px 11px 12px;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  background: transparent;
+  border-radius: 9px;
+  background: var(--surface-panel);
+  box-shadow: var(--panel-highlight);
   color: var(--text-muted);
   text-align: left;
   cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease;
 }
 
 .connection-card:hover {
   border-color: var(--line-strong);
-  background: var(--surface-panel);
+  background: var(--surface-raised);
 }
 
 .connection-line {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   color: var(--text-strong);
+  font-size: 12.5px;
 }
 
 .connection-line strong {
-  font-weight: 600;
+  font-weight: 620;
 }
 
 .connection-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--text-muted);
 }
@@ -519,18 +558,21 @@ onMounted(async () => {
 
 .connection-detail {
   overflow: hidden;
+  font-size: 11.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .connection-version {
-  font-size: 12px;
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .connection-arrow {
   position: absolute;
-  top: 42px;
-  right: 12px;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
 }
 
 .workspace {
@@ -543,44 +585,60 @@ onMounted(async () => {
   top: 0;
   z-index: 15;
   display: flex;
-  height: 68px;
+  height: 58px;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
+  gap: 14px;
   padding: 0 var(--content-gutter);
   border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--surface-canvas) 94%, transparent);
+  background: color-mix(in srgb, var(--surface-canvas) 90%, transparent);
+  backdrop-filter: blur(8px);
 }
 
 .topbar-title {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  font-size: 13.5px;
 }
 
-.topbar h1 {
-  margin: 0;
+.topbar-brand {
+  color: var(--text-muted);
+  font-weight: 620;
+}
+
+.topbar-sep {
+  color: var(--line-strong);
+}
+
+.topbar-crumb {
   overflow: hidden;
   color: var(--text-strong);
-  font-size: 19px;
-  font-weight: 590;
-  letter-spacing: -0.02em;
+  font-weight: 620;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.mobile-brand {
-  display: none;
-  color: var(--text-strong);
-  font-size: 19px;
-  font-weight: 680;
 }
 
 .topbar-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+}
+
+.ssh-pill {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface-panel);
+  color: var(--text);
+  font-size: 11.5px;
+  font-weight: 560;
+  white-space: nowrap;
 }
 
 .icon-action,
@@ -588,18 +646,19 @@ onMounted(async () => {
 .button-primary,
 .button-secondary {
   display: inline-flex;
-  min-height: 42px;
+  min-height: 34px;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   border-radius: var(--radius-control);
   cursor: pointer;
 }
 
 .icon-action {
-  width: 42px;
+  width: 34px;
   background: transparent;
   color: var(--text-muted);
+  transition: background-color 140ms ease, color 140ms ease;
 }
 
 .icon-action:disabled {
@@ -609,7 +668,7 @@ onMounted(async () => {
 
 .labeled-action {
   width: auto;
-  padding: 0 9px;
+  padding: 0 8px;
 }
 
 .labeled-action span {
@@ -622,49 +681,52 @@ onMounted(async () => {
   color: var(--text-strong);
 }
 
-.icon-action.is-refreshing svg {
-  animation: spin 800ms linear infinite;
-}
-
+.icon-action.is-refreshing svg,
 .sheet-link .is-refreshing {
   animation: spin 800ms linear infinite;
 }
 
 .configure-action {
-  padding: 0 12px;
+  padding: 0 10px;
   border: 1px solid var(--line);
-  background: transparent;
+  background: var(--surface-panel);
   color: var(--text);
+  font-size: 12px;
+  font-weight: 580;
   text-decoration: none;
+  transition: border-color 140ms ease, background-color 140ms ease;
 }
 
 .configure-action:hover {
   border-color: var(--line-strong);
   background: var(--surface-hover);
+  color: var(--text-strong);
 }
 
 .mode-badge {
   display: inline-flex;
-  min-height: 30px;
+  min-height: 28px;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   padding: 0 9px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent-strong);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
   white-space: nowrap;
 }
 
 .mode-badge.is-reauth {
+  border-color: color-mix(in srgb, var(--warning) 35%, var(--line));
   background: var(--warning-soft);
   color: var(--warning);
 }
 
 .main-content {
   min-width: 0;
-  padding: 18px var(--content-gutter) 32px;
+  padding: 20px var(--content-gutter) 36px;
 }
 
 .token-warning {
@@ -685,10 +747,6 @@ onMounted(async () => {
   margin-block-start: 1px;
 }
 
-.token-warning code {
-  color: inherit;
-}
-
 .mobile-dock,
 .mobile-sheet-layer {
   display: none;
@@ -699,23 +757,23 @@ onMounted(async () => {
 }
 
 .connection-dialog {
-  width: min(520px, calc(100vw - 32px));
+  width: min(500px, calc(100vw - 28px));
   padding: 0;
   border: 1px solid var(--line-strong);
-  border-radius: 14px;
+  border-radius: 13px;
   background: var(--surface-panel);
   color: var(--text);
-  box-shadow: var(--shadow-layer);
+  box-shadow: var(--panel-highlight), var(--shadow-layer);
 }
 
 .connection-dialog::backdrop {
-  background: rgba(3, 8, 14, 0.7);
+  background: rgba(5, 9, 14, 0.72);
   backdrop-filter: blur(4px);
 }
 
 .connection-form {
   display: grid;
-  gap: 20px;
+  gap: 18px;
   padding: 22px;
 }
 
@@ -729,7 +787,7 @@ onMounted(async () => {
 .connection-form h2 {
   margin: 0;
   color: var(--text-strong);
-  font-size: 20px;
+  font-size: 19px;
   letter-spacing: -0.02em;
 }
 
@@ -740,17 +798,18 @@ onMounted(async () => {
 
 .field {
   display: grid;
-  gap: 7px;
+  gap: 6px;
 }
 
 .field > span {
   color: var(--text-strong);
-  font-weight: 580;
+  font-size: 12.5px;
+  font-weight: 600;
 }
 
 .field input {
   width: 100%;
-  height: 44px;
+  height: 42px;
   padding: 0 12px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-control);
@@ -765,10 +824,11 @@ onMounted(async () => {
 
 .field small {
   color: var(--text-muted);
+  font-size: 12px;
 }
 
 .placeholder-warning {
-  margin: -6px 0 0 !important;
+  margin: -4px 0 0 !important;
   padding: 10px 12px;
   border-radius: var(--radius-control);
   background: var(--warning-soft);
@@ -787,7 +847,7 @@ onMounted(async () => {
 }
 
 .advanced-connection[open] summary {
-  margin-block-end: 14px;
+  margin-block-end: 12px;
 }
 
 .form-error {
@@ -800,23 +860,26 @@ onMounted(async () => {
 .connection-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 8px;
 }
 
 .button-primary,
 .button-secondary {
+  min-height: 38px;
   padding: 0 14px;
+  font-size: 13px;
 }
 
 .button-primary {
   background: var(--accent);
-  color: #07150f;
+  color: var(--button-accent-foreground);
   font-weight: 650;
 }
 
 .button-secondary {
   border: 1px solid var(--line-strong);
-  background: transparent;
+  background: var(--surface-raised);
+  color: var(--text-strong);
 }
 
 .button-primary:disabled {
@@ -829,12 +892,15 @@ onMounted(async () => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-@media (max-width: 1535px) and (min-width: 900px) {
+/* Compact icon rail only on narrow tablets (900px–1059px); laptops >= 1060px keep full labels */
+@media (max-width: 1059px) and (min-width: 900px) {
   :global(:root) {
-    --sidebar-width: 76px;
+    --sidebar-width: 72px;
   }
 
   .brand {
@@ -842,7 +908,7 @@ onMounted(async () => {
     padding: 0;
   }
 
-  .brand-word,
+  .brand-copy,
   .nav-link span,
   .connection-card > :not(.connection-line),
   .connection-line strong,
@@ -856,7 +922,7 @@ onMounted(async () => {
   }
 
   .connection-card {
-    min-height: 52px;
+    min-height: 46px;
     place-items: center;
     padding: 0;
   }
@@ -877,26 +943,22 @@ onMounted(async () => {
   }
 
   .topbar {
-    height: 58px;
+    height: 54px;
     padding: 0 14px;
   }
 
-  .mobile-brand {
-    display: inline;
+  .topbar-brand {
+    color: var(--text-strong);
+    font-weight: 700;
   }
 
-  .topbar-title h1::before {
-    color: var(--text-muted);
-    content: '/';
-    margin-right: 10px;
-  }
-
+  .ssh-pill,
   .configure-action {
     display: none;
   }
 
   .labeled-action {
-    width: 42px;
+    width: 38px;
     padding: 0;
   }
 
@@ -905,7 +967,7 @@ onMounted(async () => {
   }
 
   .mode-badge {
-    min-height: 28px;
+    min-height: 26px;
     padding-inline: 8px;
     font-size: 11px;
   }
@@ -920,8 +982,8 @@ onMounted(async () => {
     z-index: 30;
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
-    min-height: calc(64px + env(safe-area-inset-bottom));
-    padding: 5px 6px env(safe-area-inset-bottom);
+    min-height: calc(62px + env(safe-area-inset-bottom));
+    padding: 4px 6px env(safe-area-inset-bottom);
     border-top: 1px solid var(--line);
     background: var(--surface-rail);
   }
@@ -929,7 +991,7 @@ onMounted(async () => {
   .dock-link {
     display: flex;
     min-width: 0;
-    min-height: 54px;
+    min-height: 52px;
     flex-direction: column;
     align-items: center;
     justify-content: center;
@@ -937,15 +999,12 @@ onMounted(async () => {
     border-radius: 8px;
     background: transparent;
     color: var(--text-muted);
-    font-size: 10px;
+    font-size: 10.5px;
+    font-weight: 560;
     text-decoration: none;
   }
 
-  .dock-link.router-link-exact-active {
-    background: var(--surface-selected);
-    color: var(--accent-strong);
-  }
-
+  .dock-link.router-link-exact-active,
   .dock-link.is-active {
     background: var(--surface-selected);
     color: var(--accent-strong);
@@ -957,12 +1016,12 @@ onMounted(async () => {
     z-index: 40;
     display: flex;
     align-items: flex-end;
-    background: rgba(3, 8, 14, 0.58);
+    background: rgba(5, 9, 14, 0.62);
   }
 
   .mobile-sheet {
     width: 100%;
-    padding: 10px 12px calc(20px + env(safe-area-inset-bottom));
+    padding: 10px 12px calc(18px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--line-strong);
     border-radius: 16px 16px 0 0;
     background: var(--surface-panel);
@@ -971,17 +1030,17 @@ onMounted(async () => {
 
   .mobile-sheet header {
     display: flex;
-    min-height: 52px;
+    min-height: 48px;
     align-items: center;
     justify-content: space-between;
-    padding: 0 6px 5px 12px;
+    padding: 0 6px 4px 12px;
     color: var(--text-strong);
   }
 
   .sheet-link {
     display: flex;
     width: 100%;
-    min-height: 48px;
+    min-height: 46px;
     align-items: center;
     gap: 12px;
     padding: 0 12px;

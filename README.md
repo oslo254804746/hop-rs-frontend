@@ -18,14 +18,17 @@ Open `http://localhost:8080` and enter the webpage management Token. The default
 
 ## What is included
 
-- Overview, SSH/TCP assets, target credentials, ingress public keys, sessions, and Known Hosts trust records.
+- Overview, SSH/TCP assets, target credentials, ingress public keys, sessions, Known Hosts trust records, and mutation Audit events.
+- On-demand zero-agent TCP & SSH banner reachability probing (`POST /api/v1/assets/probe`) with RTT latency pills.
+- One-click `~/.ssh/config` generator supporting both **Vault Relay** (terminal / `scp` / `sftp`) and **ProxyJump** (Cursor / VS Code Remote-SSH) modes, plus row-level quick-connect command copy.
+- Inline target credential creation directly inside the New Asset workflow.
 - Complete target fingerprints and an explicitly confirmed trust reset for verified rebuilds or SSH Host Key rotations.
 - Local resource create/update/delete and active-session termination.
 - Minimal `local`/`config` ownership: local resources are editable; `hop.yaml` resources are labelled read-only before action buttons render.
-- A focused Settings page for connection, Token, same-origin proxy, CSP, and ownership boundaries.
+- A focused Settings page for connection, SSH relay endpoint, Token, same-origin proxy, CSP, and ownership boundaries.
 - English / 简体中文 switching with the language preference persisted.
 - A clearly labelled synthetic Demo workspace for product evaluation.
-- Responsive desktop and mobile navigation, dark/light themes, keyboard focus, and reduced motion.
+- Responsive desktop and mobile navigation, dark/light themes, keyboard focus (`/` asset search), and reduced motion.
 
 Secret values are write-only. Stored credential material and ingress private keys are never read or displayed.
 

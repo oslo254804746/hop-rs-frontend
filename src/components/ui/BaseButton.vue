@@ -2,10 +2,12 @@
 import { LoaderCircle } from '@lucide/vue'
 
 export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'danger'
+export type ButtonSize = 'md' | 'sm'
 
 const props = withDefaults(
   defineProps<{
     variant?: ButtonVariant
+    size?: ButtonSize
     type?: 'button' | 'submit' | 'reset'
     loading?: boolean
     disabled?: boolean
@@ -13,6 +15,7 @@ const props = withDefaults(
   }>(),
   {
     variant: 'secondary',
+    size: 'md',
     type: 'button',
     loading: false,
     disabled: false,
@@ -24,7 +27,7 @@ const props = withDefaults(
 <template>
   <button
     class="base-button"
-    :class="`base-button--${props.variant}`"
+    :class="[`base-button--${props.variant}`, `base-button--${props.size}`]"
     :type="props.type"
     :disabled="props.disabled || props.loading"
     :aria-busy="props.loading || undefined"
@@ -33,7 +36,7 @@ const props = withDefaults(
     <LoaderCircle
       v-if="props.loading"
       class="base-button__spinner"
-      :size="17"
+      :size="16"
       aria-hidden="true"
     />
     <span
@@ -63,28 +66,36 @@ const props = withDefaults(
 <style scoped>
 .base-button {
   display: inline-flex;
-  min-height: 44px;
+  min-height: 38px;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  padding: 0.625rem 0.875rem;
+  gap: 0.45rem;
+  padding: 0.5rem 0.85rem;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-control, 8px);
   font: inherit;
-  font-size: 0.875rem;
-  font-weight: 650;
+  font-size: 13px;
+  font-weight: 600;
   line-height: 1;
+  letter-spacing: -0.005em;
   white-space: nowrap;
   cursor: pointer;
   transition:
     background-color 140ms ease,
     border-color 140ms ease,
     color 140ms ease,
-    transform 140ms ease;
+    transform 120ms ease;
+}
+
+.base-button--sm {
+  min-height: 32px;
+  gap: 0.375rem;
+  padding: 0.375rem 0.65rem;
+  font-size: 12px;
 }
 
 .base-button:focus-visible {
-  outline: 2px solid var(--focus-ring, var(--info, #71b7f4));
+  outline: 2px solid var(--focus, #5ca8ea);
   outline-offset: 2px;
 }
 
@@ -94,51 +105,53 @@ const props = withDefaults(
 
 .base-button:disabled {
   cursor: not-allowed;
-  opacity: 0.56;
+  opacity: 0.54;
 }
 
 .base-button--primary {
-  color: var(--button-accent-foreground, #0d141d);
-  background: var(--accent, #53c7a2);
-  border-color: var(--accent, #53c7a2);
+  color: var(--button-accent-foreground, #051810);
+  background: var(--accent, #2ec492);
+  border-color: color-mix(in srgb, var(--accent, #2ec492) 86%, black);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .base-button--primary:not(:disabled):hover {
-  background: color-mix(in srgb, var(--accent, #53c7a2) 88%, white);
-  border-color: color-mix(in srgb, var(--accent, #53c7a2) 88%, white);
+  background: color-mix(in srgb, var(--accent, #2ec492) 90%, white);
+  border-color: color-mix(in srgb, var(--accent, #2ec492) 90%, white);
 }
 
 .base-button--secondary {
-  color: var(--text-strong, #edf3f7);
-  background: var(--surface-raised, #1c2939);
-  border-color: var(--line, #2a394b);
+  color: var(--text-strong, #f2f5f9);
+  background: var(--surface-raised, #1a1f28);
+  border-color: var(--line-strong, #323c4c);
+  box-shadow: var(--panel-highlight);
 }
 
 .base-button--secondary:not(:disabled):hover {
-  background: color-mix(in srgb, var(--surface-raised, #1c2939) 86%, var(--text-strong, #edf3f7));
-  border-color: color-mix(in srgb, var(--line, #2a394b) 72%, var(--text, #c2ccd6));
+  background: var(--surface-hover, #1e2430);
+  border-color: color-mix(in srgb, var(--line-strong, #323c4c) 76%, var(--text, #c5cdd8));
 }
 
 .base-button--quiet {
-  color: var(--text, #c2ccd6);
+  color: var(--text, #c5cdd8);
   background: transparent;
   border-color: transparent;
 }
 
 .base-button--quiet:not(:disabled):hover {
-  color: var(--text-strong, #edf3f7);
-  background: color-mix(in srgb, var(--surface-raised, #1c2939) 76%, transparent);
+  color: var(--text-strong, #f2f5f9);
+  background: var(--surface-hover, #1e2430);
 }
 
 .base-button--danger {
-  color: var(--button-danger-foreground, #190809);
-  background: var(--danger, #f26464);
-  border-color: var(--danger, #f26464);
+  color: var(--button-danger-foreground, #1b0608);
+  background: var(--danger, #eb5e66);
+  border-color: var(--danger, #eb5e66);
 }
 
 .base-button--danger:not(:disabled):hover {
-  background: color-mix(in srgb, var(--danger, #f26464) 88%, white);
-  border-color: color-mix(in srgb, var(--danger, #f26464) 88%, white);
+  background: color-mix(in srgb, var(--danger, #eb5e66) 88%, white);
+  border-color: color-mix(in srgb, var(--danger, #eb5e66) 88%, white);
 }
 
 .base-button__icon,
@@ -148,9 +161,9 @@ const props = withDefaults(
 }
 
 .base-button__icon :deep(svg) {
-  width: 17px;
-  height: 17px;
-  stroke-width: 1.8;
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.85;
 }
 
 .base-button__spinner {
@@ -176,6 +189,12 @@ const props = withDefaults(
 @keyframes button-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 760px) {
+  .base-button {
+    min-height: 40px;
   }
 }
 

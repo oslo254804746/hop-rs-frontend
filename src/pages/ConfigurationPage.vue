@@ -1,18 +1,33 @@
 <script setup lang="ts">
-import { Cable, FileCode2, KeyRound, LockKeyhole, ShieldCheck } from '@lucide/vue'
-import { computed } from 'vue'
+/* global navigator, setTimeout, clearTimeout */
 
-import { InlineNotice, StatusBadge } from '@/components/ui'
+import {
+  Cable,
+  Check,
+  Copy,
+  FileCode2,
+  KeyRound,
+  LockKeyhole,
+  ShieldCheck,
+  SquareTerminal,
+} from '@lucide/vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
+
 import { getPanelRuntimeConfig } from '@/api'
+import { BaseButton, InlineNotice, StatusBadge } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { useStatusQuery } from '@/queries'
 import { useConnection } from '@/stores/connection'
+import { inferDefaultHopHost, parseSshListenPort } from '@/utils/ssh-config'
 
 const connection = useConnection()
 const statusQuery = useStatusQuery()
 const { t } = useI18n()
 const panelRuntime = getPanelRuntimeConfig()
 const isOpenWrt = panelRuntime.deployment === 'openwrt'
+
+const copiedCli = ref(false)
+let copyTimer: ReturnType<typeof setTimeout> | null = null
 
 const connectionLabel = computed(() => {
   if (connection.state.mode === 'demo') return t('Demo workspace')
@@ -21,6 +36,30 @@ const connectionLabel = computed(() => {
 })
 
 const endpointLabel = computed(() => connection.state.endpoint || globalThis.location.origin)
+const sshListenLabel = computed(
+  () => statusQuery.data.value?.sshListen ?? connection.state.sshListen ?? '0.0.0.0:2222',
+)
+
+const cliSnippet = computed(() => {
+  const host = inferDefaultHopHost(connection.state.endpoint, globalThis.location?.hostname)
+  const port = parseSshListenPort(sshListenLabel.value)
+  const portFlag = port === 2222 ? '' : ` --port ${port}`
+  return `hop-server ssh-config --host ${host}${portFlag} >> ~/.ssh/config`
+})
+
+async function copyCli() {
+  if (!navigator.clipboard) return
+  await navigator.clipboard.writeText(cliSnippet.value)
+  copiedCli.value = true
+  if (copyTimer) clearTimeout(copyTimer)
+  copyTimer = setTimeout(() => {
+    copiedCli.value = false
+  }, 1600)
+}
+
+onBeforeUnmount(() => {
+  if (copyTimer) clearTimeout(copyTimer)
+})
 </script>
 
 <template>
@@ -43,7 +82,7 @@ const endpointLabel = computed(() => connection.state.endpoint || globalThis.loc
     <section class="settings-grid">
       <article class="settings-panel panel">
         <header>
-          <span class="settings-icon" aria-hidden="true"><Cable :size="20" /></span>
+          <span class="settings-icon" aria-hidden="true"><Cable :size="19" /></span>
           <div>
             <h2>{{ t('Panel connection') }}</h2>
             <p>{{ t(isOpenWrt ? 'OpenWrt uses the LuCI-authenticated loopback proxy by default.' : 'Compose uses the panel Origin by default. A remote URL is an advanced option.') }}</p>
@@ -56,13 +95,14 @@ const endpointLabel = computed(() => connection.state.endpoint || globalThis.loc
         <dl>
           <div><dt>{{ t('Mode') }}</dt><dd>{{ connectionLabel }}</dd></div>
           <div><dt>{{ t('Endpoint') }}</dt><dd class="mono wrap-value">{{ endpointLabel }}</dd></div>
-          <div><dt>{{ t('Version') }}</dt><dd>{{ statusQuery.data.value?.version ?? connection.state.version ?? '—' }}</dd></div>
+          <div><dt>{{ t('SSH relay endpoint') }}</dt><dd class="mono">{{ sshListenLabel }}</dd></div>
+          <div><dt>{{ t('Version') }}</dt><dd class="mono">{{ statusQuery.data.value?.version ?? connection.state.version ?? '—' }}</dd></div>
         </dl>
       </article>
 
       <article class="settings-panel panel">
         <header>
-          <span class="settings-icon" aria-hidden="true"><KeyRound :size="20" /></span>
+          <span class="settings-icon" aria-hidden="true"><KeyRound :size="19" /></span>
           <div>
             <h2>{{ t('Webpage management Token') }}</h2>
             <p>{{ t('One Bearer Token authorizes all panel actions for this Hop instance.') }}</p>
@@ -74,6 +114,26 @@ const endpointLabel = computed(() => connection.state.endpoint || globalThis.loc
         </header>
         <p class="settings-copy">{{ t(isOpenWrt ? 'OpenWrt token storage explanation' : 'Token storage explanation') }}</p>
       </article>
+    </section>
+
+    <section class="cli-panel panel">
+      <header class="cli-panel__head">
+        <span class="settings-icon accent" aria-hidden="true"><SquareTerminal :size="19" /></span>
+        <div>
+          <h2>~/.ssh/config</h2>
+          <p>{{ t('Generate local ~/.ssh/config from CLI or the Assets toolbar.') }}</p>
+        </div>
+      </header>
+      <div class="code-snippet">
+        <code :title="cliSnippet">{{ cliSnippet }}</code>
+        <BaseButton size="sm" variant="secondary" @click="void copyCli()">
+          <template #leading>
+            <Check v-if="copiedCli" />
+            <Copy v-else />
+          </template>
+          {{ t(copiedCli ? 'Copied' : 'Copy CLI command') }}
+        </BaseButton>
+      </div>
     </section>
 
     <section class="ownership-panel panel" aria-labelledby="ownership-heading">
@@ -96,7 +156,7 @@ const endpointLabel = computed(() => connection.state.endpoint || globalThis.loc
     </section>
 
     <section class="security-note panel">
-      <LockKeyhole :size="21" aria-hidden="true" />
+      <LockKeyhole :size="20" aria-hidden="true" />
       <div>
         <h2>{{ t('Browser security') }}</h2>
         <p>{{ t(isOpenWrt ? 'OpenWrt browser security explanation' : 'Browser security explanation') }}</p>
@@ -117,18 +177,19 @@ const endpointLabel = computed(() => connection.state.endpoint || globalThis.loc
 }
 
 .settings-panel,
-.ownership-panel,
-.security-note {
-  border: 1px solid var(--line);
-}
-
-.settings-panel {
+.cli-panel {
   min-width: 0;
   padding: 18px;
 }
 
+.cli-panel {
+  display: grid;
+  gap: 12px;
+}
+
 .settings-panel > header,
-.ownership-panel > header {
+.ownership-panel > header,
+.cli-panel__head {
   display: flex;
   align-items: flex-start;
   gap: 12px;
@@ -136,6 +197,7 @@ const endpointLabel = computed(() => connection.state.endpoint || globalThis.loc
 
 .settings-panel > header > div,
 .ownership-panel > header > div,
+.cli-panel__head > div,
 .ownership-row > div,
 .security-note > div {
   min-width: 0;
@@ -144,14 +206,17 @@ const endpointLabel = computed(() => connection.state.endpoint || globalThis.loc
 
 .settings-panel h2,
 .ownership-panel h2,
+.cli-panel h2,
 .security-note h2 {
   margin: 0;
   color: var(--text-strong);
-  font-size: 16px;
+  font-size: 15.5px;
+  font-weight: 640;
 }
 
 .settings-panel header p,
 .ownership-panel header p,
+.cli-panel p,
 .security-note p,
 .ownership-row p,
 .settings-copy {
@@ -162,24 +227,32 @@ const endpointLabel = computed(() => connection.state.endpoint || globalThis.loc
 .settings-icon,
 .ownership-mark {
   display: grid;
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   flex: 0 0 auto;
   place-items: center;
+  border: 1px solid var(--line);
   border-radius: var(--radius-control);
   background: var(--info-soft);
   color: var(--info);
 }
 
+.settings-icon.accent,
+.ownership-mark.local {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--line));
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
 .settings-panel dl {
   display: grid;
-  gap: 9px;
-  margin: 18px 0 0;
+  gap: 8px;
+  margin: 16px 0 0;
 }
 
 .settings-panel dl div {
   display: grid;
-  grid-template-columns: 84px minmax(0, 1fr);
+  grid-template-columns: 112px minmax(0, 1fr);
   gap: 12px;
 }
 
@@ -211,7 +284,7 @@ const endpointLabel = computed(() => connection.state.endpoint || globalThis.loc
   min-width: 0;
   align-items: center;
   gap: 14px;
-  padding: 16px 18px;
+  padding: 15px 18px;
 }
 
 .ownership-row + .ownership-row {
@@ -222,16 +295,11 @@ const endpointLabel = computed(() => connection.state.endpoint || globalThis.loc
   color: var(--text-strong);
 }
 
-.ownership-mark.local {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-}
-
 .security-note {
   display: flex;
   align-items: flex-start;
   gap: 13px;
-  padding: 17px 18px;
+  padding: 16px 18px;
   color: var(--info);
 }
 
