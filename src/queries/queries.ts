@@ -66,3 +66,12 @@ export function useKnownHostsQuery() {
     enabled: runtime.ready,
   })
 }
+
+export function useAuditEventsQuery() {
+  const runtime = useHopApiRuntime()
+  return useQuery({
+    queryKey: computed(() => hopQueryKeys.auditEvents(runtime.scope.value)),
+    queryFn: ({ signal }) => runtime.requireApi().listAuditEvents({ signal }),
+    enabled: runtime.ready,
+  })
+}

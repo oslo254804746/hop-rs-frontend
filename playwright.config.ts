@@ -6,6 +6,7 @@ import { defineConfig, devices } from '@playwright/test'
 const artifactDirectory = process.env.PLAYWRIGHT_ARTIFACT_DIR ?? join(tmpdir(), 'hop-rs-frontend-playwright')
 const outputDirectory = process.env.PLAYWRIGHT_OUTPUT_DIR ?? join(artifactDirectory, 'test-results')
 const reportDirectory = process.env.PLAYWRIGHT_REPORT_DIR ?? join(artifactDirectory, 'playwright-report')
+const chromiumExecutable = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -15,6 +16,7 @@ export default defineConfig({
   use: {
     baseURL: 'http://127.0.0.1:4173',
     trace: 'on-first-retry',
+    launchOptions: chromiumExecutable ? { executablePath: chromiumExecutable } : undefined,
   },
   webServer: {
     command: 'npm run dev -- --host 127.0.0.1',

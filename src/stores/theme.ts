@@ -15,7 +15,6 @@ const resolvedTheme = computed<'dark' | 'light'>(() => {
 
 function applyTheme() {
   document.documentElement.dataset.theme = resolvedTheme.value
-  document.documentElement.style.colorScheme = resolvedTheme.value
 }
 function setTheme(value: ThemePreference) {
   preference.value = value

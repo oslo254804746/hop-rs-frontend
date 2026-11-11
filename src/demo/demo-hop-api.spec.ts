@@ -4,19 +4,23 @@ import { HopApiError } from '@/api'
 import { createDemoHopApi } from '@/demo'
 
 describe('createDemoHopApi', () => {
-  it('returns isolated fixtures with explicit demo-only capabilities', async () => {
+  it('returns isolated fixtures with v0.2.9 capabilities', async () => {
     const first = createDemoHopApi()
     const second = createDemoHopApi()
     const assets = await first.listAssets()
     assets[0]!.name = 'mutated outside adapter'
 
     expect(first.mode).toBe('demo')
-    expect(first.capabilities).toEqual({ ownership: true, assetHealth: true })
+    expect(first.capabilities).toEqual({
+      ownership: true,
+      assetHealth: true,
+      auditEvents: true,
+    })
     expect((await first.listAssets())[0]?.name).toBe('prod-gateway')
     expect((await second.listAssets())[0]?.name).toBe('prod-gateway')
   })
 
-  it('creates local resources, clears credentials on TCP assets, and increments revision', async () => {
+  it('creates local resources, clears credentials on TCP assets, and records audit events', async () => {
     const api = createDemoHopApi()
     const before = await api.getRevision()
 
@@ -25,16 +29,41 @@ describe('createDemoHopApi', () => {
       protocol: 'tcp',
       hostname: '10.24.4.20',
       port: 5432,
+      displayName: 'Primary Postgres',
       credentialId: 'credential-homelab',
     })
 
     expect(asset).toMatchObject({
       name: 'database-console',
+      displayName: 'Primary Postgres',
       credentialId: null,
       management: { mode: 'local' },
       health: { status: 'unknown' },
     })
     expect(await api.getRevision()).toBe(before + 1)
+
+    const auditEvents = await api.listAuditEvents()
+    expect(auditEvents[0]).toMatchObject({
+      action: 'asset.create',
+      targetType: 'asset',
+      targetLabel: 'database-console',
+      result: 'success',
+    })
+  })
+
+  it('probes single and fleet assets and records probe audit events', async () => {
+    const api = createDemoHopApi()
+
+    const probed = await api.probeAsset('asset-build-runner')
+    expect(probed.health?.status).toBe('healthy')
+
+    const all = await api.probeAssets()
+    expect(all.find((item) => item.id === 'asset-staging-node')?.health?.status).toBe('healthy')
+    expect(all.find((item) => item.id === 'asset-router-ui')?.health?.status).toBe('failed')
+
+    const auditEvents = await api.listAuditEvents()
+    expect(auditEvents[0]?.action).toBe('asset.probe_all')
+    expect(auditEvents[1]?.action).toBe('asset.probe')
   })
 
   it('enforces declarative ownership before mutations', async () => {
@@ -110,31 +139,5 @@ describe('createDemoHopApi', () => {
         keyType: selected.keyType,
       }),
     ).rejects.toMatchObject<Partial<HopApiError>>({ status: 404, code: 'not_found' })
-  })
-
-  it('rejects stale apply revisions and applies against the current revision', async () => {
-    const api = createDemoHopApi()
-    const input = {
-      content: 'api_version: hop/v1alpha1\nassets: {}\n',
-      format: 'yaml' as const,
-      sourceId: 'panel',
-      baseRevision: 127,
-    }
-
-    await expect(api.applyManifest(input)).rejects.toMatchObject<Partial<HopApiError>>({
-      status: 409,
-      code: 'revision_conflict',
-      path: 'catalog_revision',
-    })
-
-    const currentRevision = await api.getRevision()
-    const summary = await api.applyManifest({ ...input, baseRevision: currentRevision })
-    expect(summary).toMatchObject({
-      baseRevision: currentRevision,
-      newRevision: currentRevision + 1,
-      dryRun: false,
-      updated: 1,
-    })
-    expect(await api.getRevision()).toBe(currentRevision + 1)
   })
 })

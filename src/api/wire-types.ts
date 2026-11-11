@@ -1,8 +1,6 @@
 import type {
   AccessMode,
-  ApplyAction,
   AssetProtocol,
-  ManifestFormat,
   SecretStatus,
 } from '@/domain'
 
@@ -12,10 +10,21 @@ export interface WireStatusResponse {
   status: 'ok'
   version: string
   catalog_revision: number
+  ssh_listen?: string
 }
 
 export interface WireRevisionResponse {
   revision: number
+}
+
+export interface WireAssetHealth {
+  asset_id?: string
+  status: string
+  checked_at: string | null
+  last_success_at: string | null
+  latency_ms: number | null
+  error_code: string | null
+  error_message: string | null
 }
 
 export interface WireAsset {
@@ -24,12 +33,14 @@ export interface WireAsset {
   protocol: AssetProtocol
   hostname: string
   port: number
+  display_name?: string | null
   description: string | null
   tags: string[]
   credential_id: string | null
   created_at: string | null
   updated_at: string | null
   ownership: 'local' | 'config'
+  health?: WireAssetHealth
 }
 
 export interface WireAssetWriteRequest {
@@ -37,6 +48,7 @@ export interface WireAssetWriteRequest {
   protocol: AssetProtocol
   hostname: string
   port: number
+  display_name?: string | null
   description?: string | null
   tags?: string[]
   credential_id?: string | null
@@ -113,76 +125,15 @@ export interface WireKnownHostResetRequest {
   confirm_reset: true
 }
 
-export interface WireConfigSourceStatus {
-  source_id: string
-  generation: number
-  last_success_at: string | null
-  last_success_revision: number | null
-  last_error_at: string | null
-  last_error_code: string | null
-  last_error_message: string | null
-}
-
-export interface WireOrphanStatus {
-  resource_type: string
-  source_id: string
-  source_key: string
-  orphaned_at: string
-}
-
-export interface WireCatalogStatus {
-  revision: number
-  manifest_api_version: string
-  sources: WireConfigSourceStatus[]
-  orphans: WireOrphanStatus[]
-}
-
-export interface WireManifestPayload {
-  content: string
-  format: ManifestFormat
-}
-
-export interface WireValidateRequest extends WireManifestPayload {
-  offline?: boolean
-}
-
-export interface WireValidationResponse {
-  valid: true
-  offline: boolean
-}
-
-export interface WireDiffRequest extends WireManifestPayload {
-  source_id: string
-  prune?: boolean
-}
-
-export interface WireApplyRequest extends WireManifestPayload {
-  source_id: string
-  base_revision: number
-  prune?: boolean
-  dry_run?: boolean
-}
-
-export interface WireApplyChange {
-  resource_type: string
-  name: string
-  action: ApplyAction
-}
-
-export interface WireApplySummary {
-  source_id: string
-  base_revision: number
-  new_revision: number
-  generation: number
-  dry_run: boolean
-  created: number
-  updated: number
-  deleted: number
-  orphaned: number
-  unchanged: number
-  changes: WireApplyChange[]
-}
-
-export interface WireReloadResponse {
-  applied: WireApplySummary[]
+export interface WireAuditEvent {
+  id: string
+  occurred_at: string | null
+  actor_label: string
+  action: string
+  target_type: string
+  target_id: string | null
+  target_label: string | null
+  result: string
+  source_ip: string | null
+  details_json: string | null
 }

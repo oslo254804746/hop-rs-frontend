@@ -39,7 +39,7 @@ const resolvedIcon = computed(() => props.icon ?? toneIcons[props.tone])
     <component
       :is="resolvedIcon"
       class="status-badge__icon"
-      :size="14"
+      :size="13"
       aria-hidden="true"
     />
     <span>{{ props.label }}</span>
@@ -48,37 +48,38 @@ const resolvedIcon = computed(() => props.icon ?? toneIcons[props.tone])
 
 <style scoped>
 .status-badge {
-  --badge-color: var(--text-muted, #8795a5);
+  --badge-color: var(--text-muted, #7f8b9b);
 
   display: inline-flex;
-  min-height: 28px;
+  min-height: 24px;
   max-width: 100%;
   align-items: center;
-  gap: 0.375rem;
-  padding: 0.25rem 0.625rem;
-  border: 1px solid color-mix(in srgb, var(--badge-color) 34%, transparent);
-  border-radius: 999px;
-  color: color-mix(in srgb, var(--badge-color) 82%, var(--text-strong, #edf3f7));
+  gap: 0.32rem;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--badge-color) 28%, var(--line, #232a35));
+  border-radius: 6px;
+  color: color-mix(in srgb, var(--badge-color) 86%, var(--text-strong, #f2f5f9));
   background: color-mix(in srgb, var(--badge-color) 11%, transparent);
-  font-size: 0.75rem;
-  font-weight: 650;
+  font-size: 11.5px;
+  font-weight: 600;
   line-height: 1.15;
+  white-space: nowrap;
 }
 
 .status-badge--success {
-  --badge-color: var(--success, var(--accent, #53c7a2));
+  --badge-color: var(--success, var(--accent, #2ec492));
 }
 
 .status-badge--warning {
-  --badge-color: var(--warning, #f2b84b);
+  --badge-color: var(--warning, #e5a93b);
 }
 
 .status-badge--danger {
-  --badge-color: var(--danger, #f26464);
+  --badge-color: var(--danger, #eb5e66);
 }
 
 .status-badge--info {
-  --badge-color: var(--info, #71b7f4);
+  --badge-color: var(--info, #5ca8ea);
 }
 
 .status-badge__icon {

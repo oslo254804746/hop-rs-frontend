@@ -11,6 +11,7 @@ interface ConnectionState {
   insecureToken: boolean
   version: string | null
   revision: number | null
+  sshListen: string | null
   error: string | null
   connecting: boolean
 }
@@ -27,6 +28,7 @@ const state = reactive<ConnectionState>({
   insecureToken: false,
   version: null,
   revision: null,
+  sshListen: null,
   error: null,
   connecting: false,
 })
@@ -75,12 +77,14 @@ async function connectToHop(endpoint: string, token: string) {
     const body = (await response.json()) as {
       version: string
       catalog_revision: number
+      ssh_listen?: string
     }
     state.endpoint = normalizedEndpoint
     state.token = normalizedToken
     state.insecureToken = normalizedToken === 'change-me'
     state.version = body.version
     state.revision = body.catalog_revision
+    state.sshListen = body.ssh_listen ?? null
     state.mode = 'live'
     window.sessionStorage.setItem(tokenKey, normalizedToken)
     if (normalizedEndpoint === '') {
@@ -114,8 +118,9 @@ function useDemo() {
   state.mode = 'demo'
   state.token = ''
   state.insecureToken = false
-  state.version = '0.2.1-demo'
+  state.version = '0.2.9-demo'
   state.revision = 128
+  state.sshListen = '0.0.0.0:2222'
   state.error = null
 }
 
@@ -130,6 +135,7 @@ function requireReauthentication() {
   state.insecureToken = false
   state.version = null
   state.revision = null
+  state.sshListen = null
 }
 
 function forgetInstance() {

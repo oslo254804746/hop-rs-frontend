@@ -1,93 +1,167 @@
 <script setup lang="ts">
-/* global HTMLDialogElement */
+/* global HTMLDialogElement, HTMLInputElement, HTMLElement, KeyboardEvent, navigator, window, setTimeout, clearTimeout */
 
 import {
-  Archive,
+  Activity,
   Boxes,
+  Check,
   CircleDot,
+  Copy,
   Filter,
   Pencil,
   Plus,
   Search,
   Server,
+  SquareTerminal,
   Trash2,
   X,
 } from '@lucide/vue'
-import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { z } from 'zod'
 
-import { BaseButton, ConfirmDialog, EmptyState, InlineNotice, StatusBadge } from '@/components/ui'
 import { getPanelRuntimeConfig } from '@/api'
-import type { Asset, AssetProtocol, AssetWriteInput } from '@/domain'
+import SshConfigDialog from '@/components/assets/SshConfigDialog.vue'
+import { BaseButton, ConfirmDialog, EmptyState, InlineNotice, StatusBadge } from '@/components/ui'
+import type {
+  Asset,
+  AssetProtocol,
+  AssetWriteInput,
+  CredentialAuthType,
+  CredentialWriteInput,
+} from '@/domain'
 import { useI18n } from '@/i18n'
 import {
   useAssetsQuery,
   useCreateAssetMutation,
+  useCreateCredentialMutation,
   useCredentialsQuery,
   useDeleteAssetMutation,
   useHopApiRuntime,
+  useProbeAssetMutation,
+  useProbeAssetsMutation,
   useUpdateAssetMutation,
 } from '@/queries'
-import { formatTimestamp } from '@/utils/format'
+import { useConnection } from '@/stores/connection'
+import { formatRelativeTime, formatTimestamp } from '@/utils/format'
+import {
+  buildAssetConnectCommand,
+  inferDefaultHopHost,
+  parseSshListenPort,
+} from '@/utils/ssh-config'
 
 const assetSchema = z.object({
   name: z.string().trim().min(1, 'Enter a resource name.'),
   protocol: z.enum(['ssh', 'tcp']),
   hostname: z.string().trim().min(1, 'Enter a hostname or IP address.'),
-  port: z.coerce.number().int().min(1, 'Port must be at least 1.').max(65_535, 'Port must be 65535 or lower.'),
+  port: z.coerce
+    .number()
+    .int()
+    .min(1, 'Port must be at least 1.')
+    .max(65_535, 'Port must be 65535 or lower.'),
+  displayName: z.string(),
   description: z.string(),
   tags: z.string(),
   credentialId: z.string(),
 })
 
+type HealthFilter = 'all' | 'healthy' | 'failed' | 'unknown'
+type CredentialFormMode = 'existing' | 'inline'
+
 const route = useRoute()
 const router = useRouter()
 const runtime = useHopApiRuntime()
+const connection = useConnection()
 const assetsQuery = useAssetsQuery()
 const credentialsQuery = useCredentialsQuery()
 const createMutation = useCreateAssetMutation()
 const updateMutation = useUpdateAssetMutation()
 const deleteMutation = useDeleteAssetMutation()
+const createCredentialMutation = useCreateCredentialMutation()
+const probeAllMutation = useProbeAssetsMutation()
+const probeAssetMutation = useProbeAssetMutation()
 const { t } = useI18n()
 const isOpenWrt = getPanelRuntimeConfig().deployment === 'openwrt'
 
+const searchInput = ref<HTMLInputElement | null>(null)
 const search = ref(typeof route.query.q === 'string' ? route.query.q : '')
 const protocol = ref<'all' | AssetProtocol>(
   route.query.protocol === 'ssh' || route.query.protocol === 'tcp' ? route.query.protocol : 'all',
 )
 const ownership = ref<'all' | 'local' | 'config'>('all')
 const credentialState = ref<'all' | 'configured' | 'missing'>('all')
+const healthFilter = ref<HealthFilter>('all')
+const selectedTag = ref<string | null>(null)
+
 const editor = ref<HTMLDialogElement | null>(null)
 const editorOpen = ref(false)
 const editingAsset = ref<Asset | null>(null)
 const deleteOpen = ref(false)
+const sshConfigOpen = ref(false)
 const feedback = ref('')
 const fieldErrors = ref<Record<string, string>>({})
 const selectionOpenedHere = ref(false)
+const probingAssetId = ref<string | null>(null)
+const copiedAssetId = ref<string | null>(null)
+let copyTimer: ReturnType<typeof setTimeout> | null = null
+
+const credentialFormMode = ref<CredentialFormMode>('existing')
+const inlineCredential = reactive({
+  name: '',
+  username: 'root',
+  authType: 'password' as CredentialAuthType,
+  password: '',
+  privateKey: '',
+  passphrase: '',
+})
 
 const form = reactive({
   name: '',
   protocol: 'ssh' as AssetProtocol,
   hostname: '',
   port: 22,
+  displayName: '',
   description: '',
   tags: '',
   credentialId: '',
 })
 
-const selectedId = computed(() => (typeof route.query.asset === 'string' ? route.query.asset : null))
+const selectedId = computed(() =>
+  typeof route.query.asset === 'string' ? route.query.asset : null,
+)
 const selectedAsset = computed(
   () => assetsQuery.data.value?.find((asset) => asset.id === selectedId.value) ?? null,
 )
 const hasOwnership = computed(() => runtime.capabilities.value?.ownership === true)
+
+const defaultHopHost = computed(() =>
+  inferDefaultHopHost(connection.state.endpoint, globalThis.location?.hostname),
+)
+const defaultHopPort = computed(() => parseSshListenPort(connection.state.sshListen))
+
+const allTags = computed(() => {
+  const tagSet = new Set<string>()
+  for (const asset of assetsQuery.data.value ?? []) {
+    for (const tag of asset.tags) {
+      if (tag.trim()) tagSet.add(tag.trim())
+    }
+  }
+  return [...tagSet].sort((a, b) => a.localeCompare(b))
+})
 
 const filteredAssets = computed(() => {
   const needle = search.value.trim().toLowerCase()
   return (assetsQuery.data.value ?? []).filter((asset) => {
     const matchesSearch =
       needle === '' ||
-      [asset.name, asset.hostname, asset.description ?? '', ...asset.tags]
+      [
+        asset.name,
+        asset.displayName ?? '',
+        asset.hostname,
+        String(asset.port),
+        asset.description ?? '',
+        ...asset.tags,
+      ]
         .join(' ')
         .toLowerCase()
         .includes(needle)
@@ -98,28 +172,94 @@ const filteredAssets = computed(() => {
     const matchesCredential =
       credentialState.value === 'all' ||
       (credentialState.value === 'configured' ? hasCredential : !hasCredential)
-    return matchesSearch && matchesProtocol && matchesOwnership && matchesCredential
+    const status = asset.health?.status ?? 'unknown'
+    const matchesHealth = healthFilter.value === 'all' || status === healthFilter.value
+    const matchesTag = selectedTag.value === null || asset.tags.includes(selectedTag.value)
+    return (
+      matchesSearch &&
+      matchesProtocol &&
+      matchesOwnership &&
+      matchesCredential &&
+      matchesHealth &&
+      matchesTag
+    )
   })
 })
 
-const counts = computed(() => ({
-  all: assetsQuery.data.value?.length ?? 0,
-  ssh: assetsQuery.data.value?.filter((asset) => asset.protocol === 'ssh').length ?? 0,
-  tcp: assetsQuery.data.value?.filter((asset) => asset.protocol === 'tcp').length ?? 0,
-  local: assetsQuery.data.value?.filter((asset) => asset.management?.mode === 'local').length ?? 0,
-  config: assetsQuery.data.value?.filter((asset) => asset.management?.mode === 'config').length ?? 0,
-}))
+const counts = computed(() => {
+  const list = assetsQuery.data.value ?? []
+  return {
+    all: list.length,
+    ssh: list.filter((asset) => asset.protocol === 'ssh').length,
+    tcp: list.filter((asset) => asset.protocol === 'tcp').length,
+    healthy: list.filter((asset) => asset.health?.status === 'healthy').length,
+    failed: list.filter((asset) => asset.health?.status === 'failed').length,
+  }
+})
 
 function credentialName(asset: Asset) {
   if (asset.protocol === 'tcp') return t('Not used')
   if (asset.credentialId === null) return t('Missing')
-  return credentialsQuery.data.value?.find((credential) => credential.id === asset.credentialId)?.name ?? t('Configured')
+  return (
+    credentialsQuery.data.value?.find((credential) => credential.id === asset.credentialId)?.name ??
+    t('Configured')
+  )
 }
 
 function ownershipLabel(asset: Asset) {
   return asset.management?.mode === 'config'
     ? t('Configuration file ownership')
     : t('Panel / local ownership')
+}
+
+function connectCommandFor(asset: Asset): string {
+  return buildAssetConnectCommand(asset, defaultHopHost.value, defaultHopPort.value)
+}
+
+function healthPillClass(asset: Asset): string {
+  const health = asset.health
+  if (!health || health.status === 'unknown') return ''
+  if (health.status === 'failed') return 'rtt-pill--failed'
+  if (health.latencyMs !== null && health.latencyMs >= 110) return 'rtt-pill--medium'
+  return 'rtt-pill--fast'
+}
+
+function healthPillLabel(asset: Asset): string {
+  const health = asset.health
+  if (!health || health.status === 'unknown') return t('Unprobed')
+  if (health.status === 'failed') return t('Unreachable')
+  return health.latencyMs !== null ? `${health.latencyMs} ms` : t('Healthy')
+}
+
+async function copyConnect(asset: Asset) {
+  if (!navigator.clipboard) return
+  await navigator.clipboard.writeText(connectCommandFor(asset))
+  copiedAssetId.value = asset.id
+  if (copyTimer) clearTimeout(copyTimer)
+  copyTimer = setTimeout(() => {
+    copiedAssetId.value = null
+  }, 1600)
+}
+
+async function runProbeAll() {
+  feedback.value = ''
+  try {
+    await probeAllMutation.mutateAsync()
+  } catch (error) {
+    feedback.value = error instanceof Error ? error.message : t('Asset action was not completed')
+  }
+}
+
+async function runProbeOne(asset: Asset) {
+  feedback.value = ''
+  probingAssetId.value = asset.id
+  try {
+    await probeAssetMutation.mutateAsync(asset.id)
+  } catch (error) {
+    feedback.value = error instanceof Error ? error.message : t('Asset action was not completed')
+  } finally {
+    probingAssetId.value = null
+  }
 }
 
 function setSelection(id: string | null) {
@@ -149,6 +289,20 @@ function clearFilters() {
   protocol.value = 'all'
   ownership.value = 'all'
   credentialState.value = 'all'
+  healthFilter.value = 'all'
+  selectedTag.value = null
+}
+
+function resetInlineCredential() {
+  credentialFormMode.value = 'existing'
+  Object.assign(inlineCredential, {
+    name: '',
+    username: 'root',
+    authType: 'password' as CredentialAuthType,
+    password: '',
+    privateKey: '',
+    passphrase: '',
+  })
 }
 
 function openCreate() {
@@ -158,10 +312,12 @@ function openCreate() {
     protocol: 'ssh',
     hostname: '',
     port: 22,
+    displayName: '',
     description: '',
     tags: '',
     credentialId: '',
   })
+  resetInlineCredential()
   fieldErrors.value = {}
   feedback.value = ''
   editorOpen.value = true
@@ -175,10 +331,12 @@ function openEdit(asset: Asset) {
     protocol: asset.protocol,
     hostname: asset.hostname,
     port: asset.port,
+    displayName: asset.displayName ?? '',
     description: asset.description ?? '',
     tags: asset.tags.join(', '),
     credentialId: asset.credentialId ?? '',
   })
+  resetInlineCredential()
   fieldErrors.value = {}
   feedback.value = ''
   editorOpen.value = true
@@ -186,6 +344,37 @@ function openEdit(asset: Asset) {
 
 function closeEditor() {
   editorOpen.value = false
+}
+
+function buildInlineCredentialInput(): CredentialWriteInput {
+  const fallbackName = form.name.trim() ? `${form.name.trim()}-cred` : ''
+  const name = inlineCredential.name.trim() || fallbackName
+  const username = inlineCredential.username.trim()
+  if (!name) throw new Error(t('Give this credential a recognizable name.'))
+  if (!username) throw new Error(t('Enter the target account username.'))
+  if (inlineCredential.authType === 'password') {
+    if (!inlineCredential.password) throw new Error(t('Enter the password that Hop should store.'))
+    return {
+      name,
+      username,
+      authType: 'password',
+      password: inlineCredential.password,
+    }
+  }
+  if (!inlineCredential.privateKey.trim()) {
+    throw new Error(t('Paste the complete private key.'))
+  }
+  if (inlineCredential.authType === 'key_passphrase' && !inlineCredential.passphrase) {
+    throw new Error(t('Enter the passphrase for this private key.'))
+  }
+  return {
+    name,
+    username,
+    authType: inlineCredential.authType,
+    privateKey: inlineCredential.privateKey,
+    passphrase:
+      inlineCredential.authType === 'key_passphrase' ? inlineCredential.passphrase : null,
+  }
 }
 
 async function submitAsset() {
@@ -202,17 +391,34 @@ async function submitAsset() {
   }
 
   fieldErrors.value = {}
-  const input: AssetWriteInput = {
-    name: result.data.name,
-    protocol: result.data.protocol,
-    hostname: result.data.hostname,
-    port: result.data.port,
-    description: result.data.description.trim() || null,
-    tags: result.data.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
-    credentialId: result.data.protocol === 'ssh' ? result.data.credentialId || null : null,
-  }
 
   try {
+    let resolvedCredentialId: string | null = null
+    if (result.data.protocol === 'ssh') {
+      if (credentialFormMode.value === 'inline') {
+        const createdCred = await createCredentialMutation.mutateAsync(
+          buildInlineCredentialInput(),
+        )
+        resolvedCredentialId = createdCred.id
+      } else {
+        resolvedCredentialId = result.data.credentialId || null
+      }
+    }
+
+    const input: AssetWriteInput = {
+      name: result.data.name,
+      protocol: result.data.protocol,
+      hostname: result.data.hostname,
+      port: result.data.port,
+      displayName: result.data.displayName.trim() || null,
+      description: result.data.description.trim() || null,
+      tags: result.data.tags
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+      credentialId: resolvedCredentialId,
+    }
+
     const saved = editingAsset.value
       ? await updateMutation.mutateAsync({ id: editingAsset.value.id, input })
       : await createMutation.mutateAsync(input)
@@ -236,6 +442,34 @@ async function confirmDelete() {
   }
 }
 
+function handleSlashShortcut(event: KeyboardEvent) {
+  if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey) return
+  const active = event.target
+  if (active instanceof HTMLElement) {
+    const tagName = active.tagName.toLowerCase()
+    if (
+      tagName === 'input' ||
+      tagName === 'textarea' ||
+      tagName === 'select' ||
+      active.isContentEditable ||
+      active.closest('dialog')
+    ) {
+      return
+    }
+  }
+  event.preventDefault()
+  searchInput.value?.focus()
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleSlashShortcut)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleSlashShortcut)
+  if (copyTimer) clearTimeout(copyTimer)
+})
+
 watch(editorOpen, async (open) => {
   await nextTick()
   if (open && !editor.value?.open) editor.value?.showModal()
@@ -245,7 +479,10 @@ watch(editorOpen, async (open) => {
 watch(
   () => form.protocol,
   (value) => {
-    if (value === 'tcp') form.credentialId = ''
+    if (value === 'tcp') {
+      form.credentialId = ''
+      credentialFormMode.value = 'existing'
+    }
     if (!editingAsset.value) form.port = value === 'ssh' ? 22 : 443
   },
 )
@@ -258,249 +495,635 @@ watch([search, protocol], () => {
   else delete query.protocol
   void router.replace({ query })
 })
-
 </script>
 
 <template>
   <section class="assets-page page-stack">
-    <InlineNotice v-if="feedback" tone="danger" :title="t('Asset action was not completed')">
+    <header class="page-intro">
+      <div>
+        <h1>{{ t('Assets') }}</h1>
+        <p>{{ t('Assets intro description') }}</p>
+      </div>
+      <div class="page-intro__actions">
+        <BaseButton
+          variant="secondary"
+          :disabled="!runtime.ready.value"
+          @click="sshConfigOpen = true"
+        >
+          <template #leading><SquareTerminal /></template>
+          {{ t('SSH Config') }}
+        </BaseButton>
+        <BaseButton
+          variant="secondary"
+          :disabled="!runtime.ready.value || counts.all === 0"
+          :loading="probeAllMutation.isPending.value"
+          :loading-label="t('Probing…')"
+          @click="void runProbeAll()"
+        >
+          <template #leading><Activity /></template>
+          {{ t('Probe all') }}
+        </BaseButton>
+        <BaseButton
+          variant="primary"
+          :disabled="!runtime.ready.value"
+          @click="openCreate"
+        >
+          <template #leading><Plus /></template>
+          {{ t('New asset') }}
+        </BaseButton>
+      </div>
+    </header>
+
+    <InlineNotice v-if="feedback && !editorOpen" tone="danger" :title="t('Asset action was not completed')">
       <p>{{ feedback }}</p>
     </InlineNotice>
 
-    <div class="assets-workspace panel" :class="{ 'has-selection': selectedAsset }">
-      <aside class="asset-context" :aria-label="t('Asset filters')">
-        <header>
-          <span>{{ t('Assets') }}</span>
-          <BaseButton variant="quiet" :aria-label="t('Create asset')" @click="openCreate"><template #leading><Plus /></template></BaseButton>
-        </header>
-        <button :class="{ active: protocol === 'all' }" type="button" @click="protocol = 'all'">{{ t('All assets') }} <span>{{ counts.all }}</span></button>
-        <button :class="{ active: protocol === 'ssh' }" type="button" @click="protocol = 'ssh'">SSH <span>{{ counts.ssh }}</span></button>
-        <button :class="{ active: protocol === 'tcp' }" type="button" @click="protocol = 'tcp'">TCP <span>{{ counts.tcp }}</span></button>
-        <template v-if="hasOwnership">
-          <div class="context-seam" />
-          <small class="ownership-heading"><span>{{ t('Ownership') }}</span></small>
-          <button :class="{ active: ownership === 'local' }" type="button" @click="ownership = ownership === 'local' ? 'all' : 'local'">{{ t('Panel / local ownership') }} <span>{{ counts.local }}</span></button>
-          <button :class="{ active: ownership === 'config' }" type="button" @click="ownership = ownership === 'config' ? 'all' : 'config'">{{ t('Configuration file ownership') }} <span>{{ counts.config }}</span></button>
-        </template>
-      </aside>
-
-      <section class="asset-inventory">
+    <div class="assets-workspace" :class="{ 'has-selection': Boolean(selectedAsset) }">
+      <section class="asset-inventory panel">
         <header class="asset-toolbar">
-          <label class="search-control">
-            <Search :size="18" aria-hidden="true" />
-            <span class="sr-only">{{ t('Search assets') }}</span>
-            <input v-model="search" type="search" :placeholder="t('Search assets…')" />
-          </label>
-          <label class="compact-select"><span class="sr-only">{{ t('Protocol') }}</span><select v-model="protocol"><option value="all">{{ t('All protocols') }}</option><option value="ssh">SSH</option><option value="tcp">TCP</option></select></label>
-          <label class="compact-select"><span class="sr-only">{{ t('Credential status') }}</span><select v-model="credentialState"><option value="all">{{ t('Any credential') }}</option><option value="configured">{{ t('Configured') }}</option><option value="missing">{{ t('Missing') }}</option></select></label>
-          <label v-if="hasOwnership" class="compact-select owner-select"><span class="sr-only">{{ t('Ownership') }}</span><select v-model="ownership"><option value="all">{{ t('Any owner') }}</option><option value="local">{{ t('Panel / local ownership') }}</option><option value="config">{{ t('Configuration file ownership') }}</option></select></label>
-          <BaseButton variant="primary" @click="openCreate"><template #leading><Plus /></template>{{ t('New asset') }}</BaseButton>
-        </header>
+          <div class="toolbar-primary">
+            <label class="search-control">
+              <Search :size="16" aria-hidden="true" />
+              <span class="sr-only">{{ t('Search assets') }}</span>
+              <input
+                ref="searchInput"
+                v-model="search"
+                type="search"
+                :placeholder="t('Press / to search assets…')"
+              />
+              <button
+                v-if="search"
+                class="clear-search"
+                type="button"
+                :aria-label="t('Clear search')"
+                @click="search = ''"
+              >
+                <X :size="14" aria-hidden="true" />
+              </button>
+            </label>
 
-        <div class="asset-table" :class="{ 'no-ownership': !hasOwnership }" role="table" :aria-label="t('Catalog assets')">
-          <div class="asset-head" role="row">
-            <span role="columnheader">{{ t('Name') }}</span><span role="columnheader">{{ t('Protocol') }}</span><span role="columnheader">{{ t('Address') }}</span><span role="columnheader">{{ t('Credential') }}</span><span v-if="hasOwnership" role="columnheader">{{ t('Ownership') }}</span>
+            <div class="segmented-control" role="group" :aria-label="t('Protocol')">
+              <button
+                type="button"
+                :class="{ 'is-active': protocol === 'all' }"
+                :aria-pressed="protocol === 'all'"
+                @click="protocol = 'all'"
+              >
+                {{ t('All assets') }} <span class="count">{{ counts.all }}</span>
+              </button>
+              <button
+                type="button"
+                :class="{ 'is-active': protocol === 'ssh' }"
+                :aria-pressed="protocol === 'ssh'"
+                @click="protocol = 'ssh'"
+              >
+                SSH <span class="count">{{ counts.ssh }}</span>
+              </button>
+              <button
+                type="button"
+                :class="{ 'is-active': protocol === 'tcp' }"
+                :aria-pressed="protocol === 'tcp'"
+                @click="protocol = 'tcp'"
+              >
+                TCP <span class="count">{{ counts.tcp }}</span>
+              </button>
+            </div>
+
+            <label class="compact-select">
+              <span class="sr-only">{{ t('Health') }}</span>
+              <select v-model="healthFilter">
+                <option value="all">{{ t('All health') }}</option>
+                <option value="healthy">{{ t('Healthy') }}</option>
+                <option value="failed">{{ t('Unreachable') }}</option>
+                <option value="unknown">{{ t('Unprobed') }}</option>
+              </select>
+            </label>
+
+            <label class="compact-select">
+              <span class="sr-only">{{ t('Credential status') }}</span>
+              <select v-model="credentialState">
+                <option value="all">{{ t('Any credential') }}</option>
+                <option value="configured">{{ t('Configured') }}</option>
+                <option value="missing">{{ t('Missing') }}</option>
+              </select>
+            </label>
+
+            <label v-if="hasOwnership" class="compact-select">
+              <span class="sr-only">{{ t('Ownership') }}</span>
+              <select v-model="ownership">
+                <option value="all">{{ t('Any owner') }}</option>
+                <option value="local">{{ t('Panel / local ownership') }}</option>
+                <option value="config">{{ t('Configuration file ownership') }}</option>
+              </select>
+            </label>
           </div>
 
-          <button
-            v-for="asset in filteredAssets"
-            :key="asset.id"
-            type="button"
-            class="asset-row"
-            :class="{ selected: asset.id === selectedId }"
-            :aria-pressed="asset.id === selectedId"
-            @click="setSelection(asset.id)"
-          >
-            <span class="asset-name" role="cell">
-              <span class="protocol-icon" aria-hidden="true"><Server v-if="asset.protocol === 'ssh'" :size="15" /><Boxes v-else :size="15" /></span>
-              <span><strong>{{ asset.name }}</strong><small>{{ asset.description || asset.tags.join(' · ') || t('No description') }}</small></span>
-            </span>
-            <span role="cell"><StatusBadge :label="asset.protocol.toUpperCase()" tone="neutral" /></span>
-            <span class="mono address" role="cell">{{ asset.hostname }}:{{ asset.port }}</span>
-            <span class="credential-cell" :class="{ missing: asset.protocol === 'ssh' && !asset.credentialId }" role="cell"><CircleDot :size="13" aria-hidden="true" />{{ credentialName(asset) }}</span>
-            <span v-if="hasOwnership" role="cell"><StatusBadge :label="ownershipLabel(asset)" :tone="asset.management?.mode === 'config' ? 'info' : 'neutral'" /></span>
-          </button>
-
-          <EmptyState v-if="!assetsQuery.isPending.value && filteredAssets.length === 0" :compact="true" :title="t('No matching assets')" :description="t('Clear filters or add a local SSH or TCP target.')">
-            <template #actions><BaseButton variant="secondary" @click="clearFilters"><template #leading><Filter /></template>{{ t('Clear filters') }}</BaseButton></template>
-          </EmptyState>
-          <div v-if="assetsQuery.isPending.value" class="loading-rows" :aria-label="t('Loading assets')" aria-busy="true"><span /><span /><span /><span /></div>
-        </div>
-
-        <footer class="inventory-footer"><span>{{ t('{visible} of {total} assets', { visible: filteredAssets.length, total: counts.all }) }}</span></footer>
-      </section>
-
-      <aside v-if="selectedAsset" class="asset-inspector" :aria-label="t('Selected asset')">
-        <header class="inspector-heading">
-          <span class="inspector-icon" aria-hidden="true"><Server v-if="selectedAsset.protocol === 'ssh'" :size="20" /><Boxes v-else :size="20" /></span>
-          <div><h2>{{ selectedAsset.name }}</h2><p>{{ t('{protocol} asset', { protocol: selectedAsset.protocol.toUpperCase() }) }}</p></div>
-          <button class="close-inspector" type="button" :aria-label="t('Close asset details')" @click="setSelection(null)"><X :size="18" /></button>
+          <div v-if="allTags.length > 0" class="tag-filter-bar" :aria-label="t('Tags')">
+            <button
+              v-for="tag in allTags"
+              :key="tag"
+              type="button"
+              class="tag-chip"
+              :class="{ 'is-active': selectedTag === tag }"
+              :aria-pressed="selectedTag === tag"
+              @click="selectedTag = selectedTag === tag ? null : tag"
+            >
+              #{{ tag }}
+            </button>
+          </div>
         </header>
 
+        <div
+          class="asset-table"
+          :class="{ 'no-ownership': !hasOwnership }"
+          role="table"
+          :aria-label="t('Catalog assets')"
+        >
+          <div class="asset-head" role="row">
+            <span role="columnheader">{{ t('Name') }}</span>
+            <span class="col-protocol" role="columnheader">{{ t('Protocol') }}</span>
+            <span role="columnheader">{{ t('Address') }}</span>
+            <span role="columnheader">{{ t('Latency / health') }}</span>
+            <span class="col-credential" role="columnheader">{{ t('Credential') }}</span>
+            <span v-if="hasOwnership" class="col-ownership ownership-head" role="columnheader">{{ t('Ownership') }}</span>
+            <span class="head-actions" role="columnheader">{{ t('Actions') }}</span>
+          </div>
+
+          <div
+            v-for="asset in filteredAssets"
+            :key="asset.id"
+            class="asset-row"
+            :class="{ selected: asset.id === selectedId }"
+            role="row"
+          >
+            <button
+              type="button"
+              class="asset-row__main"
+              :aria-pressed="asset.id === selectedId"
+              @click="setSelection(asset.id)"
+            >
+              <span class="asset-name" role="cell">
+                <span class="protocol-icon" :class="`is-${asset.protocol}`" aria-hidden="true">
+                  <Server v-if="asset.protocol === 'ssh'" :size="15" />
+                  <Boxes v-else :size="15" />
+                </span>
+                <span class="asset-name__copy">
+                  <span class="asset-name__title">
+                    <strong>{{ asset.name }}</strong>
+                    <em v-if="asset.displayName">{{ asset.displayName }}</em>
+                  </span>
+                  <small>
+                    {{ asset.description || asset.tags.map((tag) => `#${tag}`).join(' ') || t('No description') }}
+                  </small>
+                </span>
+              </span>
+
+              <span class="col-protocol" role="cell">
+                <StatusBadge :label="asset.protocol.toUpperCase()" :tone="asset.protocol === 'ssh' ? 'info' : 'neutral'" />
+              </span>
+
+              <span class="mono address tabular" role="cell">{{ asset.hostname }}:{{ asset.port }}</span>
+
+              <span class="col-health" role="cell">
+                <span class="rtt-pill" :class="healthPillClass(asset)">
+                  <span class="rtt-pill__dot" aria-hidden="true" />
+                  {{ healthPillLabel(asset) }}
+                </span>
+              </span>
+
+              <span
+                class="credential-cell col-credential"
+                :class="{ missing: asset.protocol === 'ssh' && !asset.credentialId }"
+                role="cell"
+              >
+                <CircleDot :size="12" aria-hidden="true" />
+                <span>{{ credentialName(asset) }}</span>
+              </span>
+
+              <span v-if="hasOwnership" class="ownership-cell col-ownership" role="cell">
+                <StatusBadge
+                  :label="ownershipLabel(asset)"
+                  :tone="asset.management?.mode === 'config' ? 'info' : 'neutral'"
+                />
+              </span>
+            </button>
+
+            <div class="asset-row__quick" role="cell">
+              <button
+                class="row-icon-btn"
+                type="button"
+                :aria-label="`${t('Copy connect command')} · ${asset.name}`"
+                :title="connectCommandFor(asset)"
+                @click="void copyConnect(asset)"
+              >
+                <Check v-if="copiedAssetId === asset.id" :size="15" class="copied-icon" aria-hidden="true" />
+                <Copy v-else :size="15" aria-hidden="true" />
+              </button>
+              <button
+                class="row-icon-btn"
+                type="button"
+                :disabled="probingAssetId === asset.id || probeAllMutation.isPending.value"
+                :aria-label="`${t('Probe asset')} · ${asset.name}`"
+                :title="t('Probe asset')"
+                @click="void runProbeOne(asset)"
+              >
+                <Activity
+                  :size="15"
+                  :class="{ 'is-pulsing': probingAssetId === asset.id }"
+                  aria-hidden="true"
+                />
+              </button>
+            </div>
+          </div>
+
+          <EmptyState
+            v-if="!assetsQuery.isPending.value && filteredAssets.length === 0"
+            :compact="true"
+            :title="t('No matching assets')"
+            :description="t('Clear filters or add a local SSH or TCP target.')"
+          >
+            <template #actions>
+              <BaseButton variant="secondary" @click="clearFilters">
+                <template #leading><Filter /></template>
+                {{ t('Clear filters') }}
+              </BaseButton>
+            </template>
+          </EmptyState>
+
+          <div
+            v-if="assetsQuery.isPending.value"
+            class="loading-rows"
+            :aria-label="t('Loading assets')"
+            aria-busy="true"
+          >
+            <span /><span /><span /><span />
+          </div>
+        </div>
+
+        <footer class="inventory-footer tabular">
+          <span>{{ t('{visible} of {total} assets', { visible: filteredAssets.length, total: counts.all }) }}</span>
+          <span class="footer-health">
+            {{ counts.healthy }} {{ t('Healthy').toLowerCase() }}
+            <template v-if="counts.failed > 0"> · {{ counts.failed }} {{ t('Unreachable').toLowerCase() }}</template>
+          </span>
+        </footer>
+      </section>
+
+      <aside
+        v-if="selectedAsset"
+        class="asset-inspector panel"
+        :aria-label="t('Selected asset')"
+      >
+        <header class="inspector-heading">
+          <span class="inspector-icon" :class="`is-${selectedAsset.protocol}`" aria-hidden="true">
+            <Server v-if="selectedAsset.protocol === 'ssh'" :size="18" />
+            <Boxes v-else :size="18" />
+          </span>
+          <div class="inspector-title">
+            <h2>{{ selectedAsset.name }}</h2>
+            <p>
+              {{ selectedAsset.displayName ? `${selectedAsset.displayName} · ` : '' }}{{ t('{protocol} asset', { protocol: selectedAsset.protocol.toUpperCase() }) }}
+            </p>
+          </div>
+          <button
+            class="close-inspector"
+            type="button"
+            :aria-label="t('Close asset details')"
+            @click="setSelection(null)"
+          >
+            <X :size="17" />
+          </button>
+        </header>
+
+        <section class="inspector-block">
+          <div class="inspector-block__head">
+            <span>{{ t('Quick connect') }}</span>
+            <button
+              class="text-link-btn"
+              type="button"
+              @click="sshConfigOpen = true"
+            >
+              ~/.ssh/config
+            </button>
+          </div>
+          <div class="code-snippet">
+            <code :title="connectCommandFor(selectedAsset)">{{ connectCommandFor(selectedAsset) }}</code>
+            <BaseButton
+              size="sm"
+              variant="secondary"
+              @click="void copyConnect(selectedAsset)"
+            >
+              <template #leading>
+                <Check v-if="copiedAssetId === selectedAsset.id" />
+                <Copy v-else />
+              </template>
+              {{ t(copiedAssetId === selectedAsset.id ? 'Copied' : 'Copy connect command') }}
+            </BaseButton>
+          </div>
+        </section>
+
+        <section class="inspector-block health-card">
+          <div class="health-card__row">
+            <div>
+              <span class="inspector-block__label">{{ t('Latency / health') }}</span>
+              <small class="health-card__sub">
+                {{ t(selectedAsset.protocol === 'ssh' ? 'TCP + SSH banner check from Hop' : 'TCP port check from Hop') }}
+              </small>
+            </div>
+            <span class="rtt-pill" :class="healthPillClass(selectedAsset)">
+              <span class="rtt-pill__dot" aria-hidden="true" />
+              {{ healthPillLabel(selectedAsset) }}
+            </span>
+          </div>
+
+          <p
+            v-if="selectedAsset.health?.status === 'failed' && selectedAsset.health.errorMessage"
+            class="health-error"
+          >
+            {{ selectedAsset.health.errorMessage }}
+          </p>
+
+          <div class="health-card__footer">
+            <span class="health-checked tabular">
+              {{ t('Last checked') }}: {{ selectedAsset.health?.checkedAt ? formatRelativeTime(selectedAsset.health.checkedAt) : t('Unchecked') }}
+            </span>
+            <BaseButton
+              size="sm"
+              variant="secondary"
+              :loading="probingAssetId === selectedAsset.id"
+              :loading-label="t('Probing…')"
+              @click="void runProbeOne(selectedAsset)"
+            >
+              <template #leading><Activity /></template>
+              {{ t('Probe now') }}
+            </BaseButton>
+          </div>
+        </section>
+
         <dl class="inspector-fields">
-          <div><dt>{{ t('Protocol') }}</dt><dd>{{ selectedAsset.protocol.toUpperCase() }}</dd></div>
-          <div><dt>{{ t('Address') }}</dt><dd class="mono">{{ selectedAsset.hostname }}:{{ selectedAsset.port }}</dd></div>
-          <div><dt>{{ t('Credential') }}</dt><dd>{{ credentialName(selectedAsset) }}</dd></div>
-          <div v-if="hasOwnership" class="ownership-field"><dt>{{ t('Ownership') }}</dt><dd>{{ ownershipLabel(selectedAsset) }}</dd></div>
-          <div><dt>{{ t('Updated') }}</dt><dd>{{ formatTimestamp(selectedAsset.updatedAt) }}</dd></div>
-          <div v-if="selectedAsset.tags.length"><dt>{{ t('Tags') }}</dt><dd class="tag-list"><span v-for="tag in selectedAsset.tags" :key="tag">{{ tag }}</span></dd></div>
+          <div>
+            <dt>{{ t('Protocol') }}</dt>
+            <dd>{{ selectedAsset.protocol.toUpperCase() }}</dd>
+          </div>
+          <div>
+            <dt>{{ t('Address') }}</dt>
+            <dd class="mono tabular">{{ selectedAsset.hostname }}:{{ selectedAsset.port }}</dd>
+          </div>
+          <div v-if="selectedAsset.displayName">
+            <dt>{{ t('Display name') }}</dt>
+            <dd>{{ selectedAsset.displayName }}</dd>
+          </div>
+          <div>
+            <dt>{{ t('Credential') }}</dt>
+            <dd>{{ credentialName(selectedAsset) }}</dd>
+          </div>
+          <div v-if="hasOwnership" class="ownership-field">
+            <dt>{{ t('Ownership') }}</dt>
+            <dd>{{ ownershipLabel(selectedAsset) }}</dd>
+          </div>
+          <div>
+            <dt>{{ t('Updated') }}</dt>
+            <dd class="tabular">{{ formatTimestamp(selectedAsset.updatedAt) }}</dd>
+          </div>
+          <div v-if="selectedAsset.tags.length">
+            <dt>{{ t('Tags') }}</dt>
+            <dd class="tag-list">
+              <span v-for="tag in selectedAsset.tags" :key="tag" class="tag-chip">#{{ tag }}</span>
+            </dd>
+          </div>
         </dl>
 
-        <InlineNotice v-if="selectedAsset.management?.mode === 'config'" tone="info" :title="t(isOpenWrt ? 'OpenWrt managed config title' : 'Managed by hop.yaml')">
+        <InlineNotice
+          v-if="selectedAsset.management?.mode === 'config'"
+          tone="info"
+          :title="t(isOpenWrt ? 'OpenWrt managed config title' : 'Managed by hop.yaml')"
+        >
           <p>{{ t('Config asset read-only explanation') }}</p>
         </InlineNotice>
 
         <section v-if="selectedAsset.management?.mode !== 'config'" class="inspector-actions">
           <h3>{{ t('Actions') }}</h3>
-          <BaseButton variant="secondary" @click="openEdit(selectedAsset)"><template #leading><Pencil /></template>{{ t('Edit asset') }}</BaseButton>
-          <BaseButton variant="danger" @click="deleteOpen = true"><template #leading><Trash2 /></template>{{ t('Remove asset') }}</BaseButton>
+          <div class="inspector-actions__row">
+            <BaseButton variant="secondary" @click="openEdit(selectedAsset)">
+              <template #leading><Pencil /></template>
+              {{ t('Edit asset') }}
+            </BaseButton>
+            <BaseButton variant="danger" @click="deleteOpen = true">
+              <template #leading><Trash2 /></template>
+              {{ t('Remove asset') }}
+            </BaseButton>
+          </div>
         </section>
       </aside>
-
-      <div v-else class="asset-inspector inspector-empty" aria-hidden="true">
-        <Archive :size="25" /><p>{{ t('Select an asset to inspect its Catalog record.') }}</p>
-      </div>
     </div>
 
-    <dialog ref="editor" class="asset-editor" @close="editorOpen = false" @cancel.prevent="closeEditor">
+    <dialog
+      ref="editor"
+      class="asset-editor"
+      @close="editorOpen = false"
+      @cancel.prevent="closeEditor"
+    >
       <form class="editor-form" @submit.prevent="submitAsset">
-        <header><div><h2>{{ t(editingAsset ? 'Edit asset' : 'New asset') }}</h2><p>{{ t(editingAsset ? 'Update the local Catalog record.' : 'Add an SSH or TCP target to the local Catalog.') }}</p></div><button type="button" :aria-label="t('Close editor')" @click="closeEditor"><X :size="19" /></button></header>
-        <InlineNotice v-if="feedback" tone="danger"><p>{{ feedback }}</p></InlineNotice>
+        <header>
+          <div>
+            <h2>{{ t(editingAsset ? 'Edit asset' : 'New asset') }}</h2>
+            <p>{{ t(editingAsset ? 'Update the local Catalog record.' : 'Add an SSH or TCP target to the local Catalog.') }}</p>
+          </div>
+          <button type="button" :aria-label="t('Close editor')" @click="closeEditor">
+            <X :size="18" />
+          </button>
+        </header>
+
+        <InlineNotice v-if="feedback" tone="danger">
+          <p>{{ feedback }}</p>
+        </InlineNotice>
+
         <div class="form-grid">
-          <label><span>{{ t('Name') }}</span><input v-model="form.name" autocomplete="off" :aria-invalid="Boolean(fieldErrors.name)" /><small v-if="fieldErrors.name">{{ fieldErrors.name }}</small></label>
-          <label><span>{{ t('Protocol') }}</span><select v-model="form.protocol"><option value="ssh">SSH</option><option value="tcp">TCP</option></select></label>
-          <label class="host-field"><span>{{ t('Hostname or IP') }}</span><input v-model="form.hostname" spellcheck="false" :aria-invalid="Boolean(fieldErrors.hostname)" /><small v-if="fieldErrors.hostname">{{ fieldErrors.hostname }}</small></label>
-          <label><span>{{ t('Port') }}</span><input v-model.number="form.port" type="number" min="1" max="65535" :aria-invalid="Boolean(fieldErrors.port)" /><small v-if="fieldErrors.port">{{ fieldErrors.port }}</small></label>
-          <label v-if="form.protocol === 'ssh'" class="wide-field"><span>{{ t('Credential') }}</span><select v-model="form.credentialId"><option value="">{{ t('No credential') }}</option><option v-for="credential in credentialsQuery.data.value ?? []" :key="credential.id" :value="credential.id">{{ credential.name }} · {{ credential.username }}</option></select></label>
-          <label class="wide-field"><span>{{ t('Tags') }}</span><input v-model="form.tags" placeholder="production, edge" /><small>{{ t('Comma-separated labels.') }}</small></label>
-          <label class="wide-field"><span>{{ t('Description') }}</span><textarea v-model="form.description" rows="3" /></label>
+          <label>
+            <span>{{ t('Name') }}</span>
+            <input v-model="form.name" autocomplete="off" :aria-invalid="Boolean(fieldErrors.name)" />
+            <small v-if="fieldErrors.name">{{ fieldErrors.name }}</small>
+          </label>
+          <label>
+            <span>{{ t('Protocol') }}</span>
+            <select v-model="form.protocol">
+              <option value="ssh">SSH</option>
+              <option value="tcp">TCP</option>
+            </select>
+          </label>
+
+          <label class="wide-field">
+            <span>{{ t('Display name') }}</span>
+            <input v-model="form.displayName" autocomplete="off" :placeholder="t('Optional friendly label, e.g. HKG Edge Node.')" />
+          </label>
+
+          <label class="host-field">
+            <span>{{ t('Hostname or IP') }}</span>
+            <input v-model="form.hostname" spellcheck="false" :aria-invalid="Boolean(fieldErrors.hostname)" />
+            <small v-if="fieldErrors.hostname">{{ fieldErrors.hostname }}</small>
+          </label>
+          <label>
+            <span>{{ t('Port') }}</span>
+            <input v-model.number="form.port" type="number" min="1" max="65535" :aria-invalid="Boolean(fieldErrors.port)" />
+            <small v-if="fieldErrors.port">{{ fieldErrors.port }}</small>
+          </label>
+
+          <div v-if="form.protocol === 'ssh'" class="wide-field credential-block">
+            <div class="credential-block__head">
+              <span>{{ t('Credential') }}</span>
+              <div class="segmented-control">
+                <button
+                  type="button"
+                  :class="{ 'is-active': credentialFormMode === 'existing' }"
+                  @click="credentialFormMode = 'existing'"
+                >
+                  {{ t('Select existing') }}
+                </button>
+                <button
+                  type="button"
+                  :class="{ 'is-active': credentialFormMode === 'inline' }"
+                  @click="credentialFormMode = 'inline'"
+                >
+                  {{ t('New credential inline') }}
+                </button>
+              </div>
+            </div>
+
+            <label v-if="credentialFormMode === 'existing'" class="credential-select-label">
+              <span class="sr-only">{{ t('Credential') }}</span>
+              <select v-model="form.credentialId">
+                <option value="">{{ t('No credential') }}</option>
+                <option
+                  v-for="credential in credentialsQuery.data.value ?? []"
+                  :key="credential.id"
+                  :value="credential.id"
+                >
+                  {{ credential.name }} · {{ credential.username }}
+                </option>
+              </select>
+            </label>
+
+            <div v-else class="inline-cred-fields">
+              <div class="inline-cred-row">
+                <label>
+                  <span>{{ t('Credential name') }}</span>
+                  <input v-model="inlineCredential.name" autocomplete="off" :placeholder="form.name ? `${form.name}-cred` : 'hk-root'" />
+                </label>
+                <label>
+                  <span>{{ t('Target username') }}</span>
+                  <input v-model="inlineCredential.username" autocomplete="off" />
+                </label>
+              </div>
+              <label>
+                <span>{{ t('Authentication') }}</span>
+                <select v-model="inlineCredential.authType">
+                  <option value="password">{{ t('Password') }}</option>
+                  <option value="key">{{ t('Private key') }}</option>
+                  <option value="key_passphrase">{{ t('Private key + passphrase') }}</option>
+                </select>
+              </label>
+              <label v-if="inlineCredential.authType === 'password'">
+                <span>{{ t('Password') }}</span>
+                <input v-model="inlineCredential.password" type="password" autocomplete="new-password" />
+              </label>
+              <template v-else>
+                <label>
+                  <span>{{ t('Private key') }}</span>
+                  <textarea v-model="inlineCredential.privateKey" rows="3" class="mono" spellcheck="false" />
+                </label>
+                <label v-if="inlineCredential.authType === 'key_passphrase'">
+                  <span>{{ t('Passphrase') }}</span>
+                  <input v-model="inlineCredential.passphrase" type="password" autocomplete="new-password" />
+                </label>
+              </template>
+              <small>{{ t('Secret form boundary') }}</small>
+            </div>
+          </div>
+
+          <label class="wide-field">
+            <span>{{ t('Tags') }}</span>
+            <input v-model="form.tags" placeholder="production, edge, hk" />
+            <small>{{ t('Comma-separated labels.') }}</small>
+          </label>
+          <label class="wide-field">
+            <span>{{ t('Description') }}</span>
+            <textarea v-model="form.description" rows="2" />
+          </label>
         </div>
-        <footer><BaseButton variant="secondary" @click="closeEditor">{{ t('Cancel') }}</BaseButton><BaseButton variant="primary" type="submit" :loading="createMutation.isPending.value || updateMutation.isPending.value"><template #leading><Plus /></template>{{ t(editingAsset ? 'Save changes' : 'Create asset action') }}</BaseButton></footer>
+
+        <footer>
+          <BaseButton variant="secondary" @click="closeEditor">{{ t('Cancel') }}</BaseButton>
+          <BaseButton
+            variant="primary"
+            type="submit"
+            :loading="createMutation.isPending.value || updateMutation.isPending.value || createCredentialMutation.isPending.value"
+          >
+            <template #leading><Plus /></template>
+            {{ t(editingAsset ? 'Save changes' : 'Create asset action') }}
+          </BaseButton>
+        </footer>
       </form>
     </dialog>
 
-    <ConfirmDialog v-model:open="deleteOpen" :title="t('Remove this asset?')" :description="selectedAsset ? t('{name} will be deleted from the local Catalog. This cannot be undone.', { name: selectedAsset.name }) : ''" :confirm-label="t('Remove asset')" :busy="deleteMutation.isPending.value" @confirm="confirmDelete" />
+    <SshConfigDialog
+      v-model:open="sshConfigOpen"
+      :assets="assetsQuery.data.value ?? []"
+      :credentials="credentialsQuery.data.value ?? []"
+    />
+
+    <ConfirmDialog
+      v-model:open="deleteOpen"
+      :title="t('Remove this asset?')"
+      :description="selectedAsset ? t('{name} will be deleted from the local Catalog. This cannot be undone.', { name: selectedAsset.name }) : ''"
+      :confirm-label="t('Remove asset')"
+      :busy="deleteMutation.isPending.value"
+      @confirm="confirmDelete"
+    />
   </section>
 </template>
 
 <style scoped>
 .assets-workspace {
   display: grid;
-  min-height: calc(100vh - 119px);
-  grid-template-columns: 190px minmax(520px, 1fr) 320px;
-  overflow: hidden;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
 }
 
-.asset-context,
-.asset-inspector {
-  min-width: 0;
-  background: color-mix(in srgb, var(--surface-panel) 72%, var(--surface-canvas));
-}
-
-.asset-context {
-  padding: 14px 10px;
-  border-right: 1px solid var(--line);
-}
-
-.asset-context header {
-  display: flex;
-  height: 48px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 8px 8px 12px;
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.asset-context header :deep(.base-button) {
-  width: 40px;
-  min-height: 40px;
-  padding: 0;
-}
-
-.asset-context > button {
-  display: flex;
-  width: 100%;
-  min-height: 42px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 11px;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text);
-  text-align: left;
-  cursor: pointer;
-}
-
-.asset-context > button:hover,
-.asset-context > button.active {
-  background: var(--surface-selected);
-  color: var(--text-strong);
-}
-
-.asset-context > button span,
-.asset-context > small {
-  color: var(--text-muted);
-}
-
-.asset-context > small {
-  display: block;
-  padding: 7px 12px;
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.asset-context > .ownership-heading {
-  display: grid;
-  gap: 3px;
-}
-
-.ownership-heading em,
-.ownership-field small {
-  color: var(--accent-strong);
-  font-size: 10px;
-  font-style: normal;
-  font-weight: 600;
-  letter-spacing: 0;
-  text-transform: none;
-}
-
-.context-seam {
-  height: 1px;
-  margin: 14px 8px;
-  background: var(--line);
+.assets-workspace.has-selection {
+  grid-template-columns: minmax(0, 1fr) 368px;
 }
 
 .asset-inventory {
   display: grid;
   min-width: 0;
-  grid-template-rows: auto 1fr auto;
+  overflow: hidden;
 }
 
 .asset-toolbar {
-  display: flex;
-  min-height: 70px;
-  align-items: center;
-  gap: 8px;
+  display: grid;
+  gap: 10px;
   padding: 12px 14px;
   border-bottom: 1px solid var(--line);
 }
 
+.toolbar-primary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
 .search-control {
   display: flex;
-  min-width: 190px;
-  flex: 1;
-  height: 44px;
+  min-width: 210px;
+  flex: 1 1 240px;
+  height: 38px;
   align-items: center;
-  gap: 9px;
-  padding: 0 12px;
+  gap: 8px;
+  padding: 0 11px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--surface-input);
   color: var(--text-muted);
 }
@@ -510,67 +1133,84 @@ watch([search, protocol], () => {
 }
 
 .search-control input {
-  min-width: 0;
   width: 100%;
+  min-width: 0;
   border: 0;
-  outline: 0;
   background: transparent;
+  color: var(--text-strong);
+  outline: 0;
+}
+
+.clear-search {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
 }
 
 .compact-select select {
-  height: 44px;
-  padding: 0 32px 0 10px;
+  height: 38px;
+  padding: 0 28px 0 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--surface-input);
+  font-size: 12.5px;
 }
 
-.owner-select {
-  display: none;
+.tag-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
 }
 
 .asset-table {
   min-width: 0;
-  overflow: auto;
-}
-
-.asset-head,
-.asset-row {
-  display: grid;
-  min-width: 760px;
-  grid-template-columns: minmax(190px, 1.35fr) 92px minmax(150px, 1fr) minmax(130px, 0.8fr) minmax(120px, 0.85fr);
-  align-items: center;
-  gap: 10px;
-  padding: 0 16px;
-}
-
-.asset-head.no-ownership,
-.asset-row.no-ownership,
-.asset-table.no-ownership .asset-head,
-.asset-table.no-ownership .asset-row {
-  min-width: 640px;
-  grid-template-columns: minmax(190px, 1.4fr) 92px minmax(150px, 1fr) minmax(130px, 0.9fr);
+  overflow-x: auto;
 }
 
 .asset-head {
-  min-height: 42px;
+  display: grid;
+  min-width: 820px;
+  grid-template-columns: minmax(200px, 1.5fr) 78px minmax(145px, 1fr) 118px minmax(120px, 0.9fr) minmax(118px, 0.85fr) 74px;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 0 14px;
   border-bottom: 1px solid var(--line);
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 650;
-  letter-spacing: 0.04em;
-  text-align: left;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
+.asset-table.no-ownership .asset-head {
+  min-width: 700px;
+  grid-template-columns: minmax(200px, 1.55fr) 78px minmax(145px, 1fr) 118px minmax(120px, 0.9fr) 74px;
+}
+
+.head-actions {
+  text-align: right;
+}
+
 .asset-row {
-  width: 100%;
-  min-height: 59px;
+  display: grid;
+  min-width: 820px;
+  grid-template-columns: minmax(0, 1fr) 74px;
+  align-items: center;
+  gap: 10px;
+  padding-right: 14px;
   border-bottom: 1px solid var(--line);
-  background: transparent;
-  color: var(--text);
-  text-align: left;
-  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.asset-table.no-ownership .asset-row {
+  min-width: 700px;
 }
 
 .asset-row:hover {
@@ -579,10 +1219,27 @@ watch([search, protocol], () => {
 
 .asset-row.selected {
   background: var(--surface-selected);
-  box-shadow: inset 2px 0 var(--accent);
 }
 
-.asset-row > span {
+.asset-row__main {
+  display: grid;
+  width: 100%;
+  min-height: 56px;
+  grid-template-columns: minmax(200px, 1.5fr) 78px minmax(145px, 1fr) 118px minmax(120px, 0.9fr) minmax(118px, 0.85fr);
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0 6px 14px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.asset-table.no-ownership .asset-row__main {
+  grid-template-columns: minmax(200px, 1.55fr) 78px minmax(145px, 1fr) 118px minmax(120px, 0.9fr);
+}
+
+.asset-row__main > span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -595,22 +1252,38 @@ watch([search, protocol], () => {
   gap: 10px;
 }
 
-.asset-name > span:last-child {
+.asset-name__copy {
   display: grid;
   min-width: 0;
+  gap: 1px;
 }
 
-.asset-name strong {
+.asset-name__title {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.asset-name__title strong {
   overflow: hidden;
   color: var(--text-strong);
-  font-weight: 600;
+  font-weight: 620;
+  text-overflow: ellipsis;
+}
+
+.asset-name__title em {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-style: normal;
   text-overflow: ellipsis;
 }
 
 .asset-name small {
   overflow: hidden;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 11.5px;
   text-overflow: ellipsis;
 }
 
@@ -621,9 +1294,21 @@ watch([search, protocol], () => {
   height: 30px;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--line);
   border-radius: 7px;
+  background: var(--surface-raised);
   color: var(--text-muted);
+}
+
+.protocol-icon.is-ssh,
+.inspector-icon.is-ssh {
+  border-color: color-mix(in srgb, var(--info) 28%, var(--line));
+  color: var(--info);
+}
+
+.address {
+  color: var(--text-strong);
+  font-size: 12.5px;
 }
 
 .credential-cell {
@@ -631,10 +1316,57 @@ watch([search, protocol], () => {
   align-items: center;
   gap: 6px;
   color: var(--accent-strong);
+  font-size: 12.5px;
 }
 
 .credential-cell.missing {
   color: var(--warning);
+}
+
+.asset-row__quick {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.row-icon-btn {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.row-icon-btn:hover:not(:disabled) {
+  border-color: var(--line-strong);
+  background: var(--surface-raised);
+  color: var(--text-strong);
+}
+
+.row-icon-btn:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.copied-icon {
+  color: var(--accent-strong);
+}
+
+.is-pulsing {
+  color: var(--accent-strong);
+  animation: pulse-probe 800ms ease-in-out infinite alternate;
+}
+
+@keyframes pulse-probe {
+  to {
+    opacity: 0.4;
+  }
 }
 
 .loading-rows {
@@ -642,59 +1374,71 @@ watch([search, protocol], () => {
 }
 
 .loading-rows span {
-  height: 59px;
+  height: 56px;
   border-bottom: 1px solid var(--line);
   background: color-mix(in srgb, var(--surface-raised) 50%, transparent);
-  animation: loading-pulse 1.2s ease-in-out infinite alternate;
 }
-
-@keyframes loading-pulse { to { opacity: 0.45; } }
 
 .inventory-footer {
   display: flex;
-  min-height: 46px;
+  min-height: 42px;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 0 16px;
+  padding: 0 14px;
   border-top: 1px solid var(--line);
   color: var(--text-muted);
   font-size: 12px;
 }
 
 .asset-inspector {
-  padding: 20px 18px;
-  border-left: 1px solid var(--line);
+  position: sticky;
+  top: 76px;
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+  padding: 16px;
 }
 
 .inspector-heading {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  padding-bottom: 20px;
+  gap: 11px;
+  padding-bottom: 13px;
   border-bottom: 1px solid var(--line);
 }
 
-.inspector-heading h2 {
-  margin: 0;
-  color: var(--text-strong);
-  font-size: 17px;
-  font-weight: 650;
+.inspector-title {
+  min-width: 0;
 }
 
-.inspector-heading p {
+.inspector-title h2 {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 16px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspector-title p {
   margin: 2px 0 0;
+  overflow: hidden;
   color: var(--text-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .close-inspector,
 .editor-form header > button {
   display: grid;
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   place-items: center;
-  border-radius: 8px;
+  border-radius: 7px;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
@@ -706,22 +1450,113 @@ watch([search, protocol], () => {
   color: var(--text-strong);
 }
 
+.inspector-block {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+
+.asset-inspector .code-snippet {
+  display: grid;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.asset-inspector .code-snippet code {
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+  line-height: 1.45;
+}
+
+.inspector-block__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 620;
+}
+
+.inspector-block__label {
+  display: block;
+  color: var(--text-strong);
+  font-size: 12.5px;
+  font-weight: 620;
+}
+
+.text-link-btn {
+  padding: 0;
+  background: transparent;
+  color: var(--info);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.text-link-btn:hover {
+  text-decoration: underline;
+}
+
+.health-card {
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface-input);
+}
+
+.health-card__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.health-card__sub {
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+
+.health-error {
+  margin: 2px 0 0;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.health-card__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line-subtle);
+}
+
+.health-checked {
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+
 .inspector-fields {
   display: grid;
   margin: 0;
-  padding: 14px 0;
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
 }
 
 .inspector-fields > div {
   display: grid;
-  grid-template-columns: 95px minmax(0, 1fr);
+  grid-template-columns: 92px minmax(0, 1fr);
   gap: 10px;
-  min-height: 46px;
+  min-height: 38px;
   align-items: center;
 }
 
 .inspector-fields dt {
   color: var(--text-muted);
+  font-size: 12.5px;
 }
 
 .inspector-fields dd {
@@ -729,11 +1564,7 @@ watch([search, protocol], () => {
   margin: 0;
   overflow-wrap: anywhere;
   color: var(--text-strong);
-}
-
-.ownership-field dd {
-  display: grid;
-  gap: 3px;
+  font-size: 12.5px;
 }
 
 .tag-list {
@@ -742,128 +1573,294 @@ watch([search, protocol], () => {
   gap: 5px;
 }
 
-.tag-list span {
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: var(--surface-raised);
-  color: var(--text);
-  font-size: 11px;
-}
-
 .inspector-actions {
   display: grid;
   gap: 8px;
-  margin-top: 20px;
-  padding-top: 16px;
+  padding-top: 12px;
   border-top: 1px solid var(--line);
 }
 
 .inspector-actions h3 {
-  margin: 0 0 5px;
+  margin: 0;
   color: var(--text-muted);
   font-size: 11px;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
-.inspector-actions :deep(.base-button) {
-  width: 100%;
-  justify-content: flex-start;
+.inspector-actions__row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .inspector-actions :deep(.base-button--danger) {
-  border: 1px solid color-mix(in srgb, var(--danger) 55%, var(--line));
+  border: 1px solid color-mix(in srgb, var(--danger) 48%, var(--line));
   background: transparent;
   color: var(--danger);
 }
 
 .inspector-actions :deep(.base-button--danger:not(:disabled):hover) {
-  background: color-mix(in srgb, var(--danger) 10%, transparent);
-}
-
-.inspector-empty {
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  color: var(--text-muted);
-  pointer-events: none;
-  text-align: center;
-}
-
-.inspector-empty p {
-  max-width: 24ch;
+  background: var(--danger-soft);
 }
 
 .asset-editor {
-  width: min(620px, calc(100vw - 28px));
+  width: min(620px, calc(100vw - 24px));
   max-height: calc(100dvh - 28px);
   padding: 0;
   border: 1px solid var(--line-strong);
-  border-radius: 14px;
+  border-radius: 13px;
   background: var(--surface-panel);
   color: var(--text);
-  box-shadow: var(--shadow-layer);
+  box-shadow: var(--panel-highlight), var(--shadow-layer);
 }
 
-.asset-editor::backdrop { background: rgba(3, 8, 14, 0.7); backdrop-filter: blur(4px); }
-
-.editor-form { display: grid; gap: 20px; padding: 22px; }
-.editor-form header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.editor-form h2 { margin: 0; color: var(--text-strong); font-size: 20px; }
-.editor-form header p { margin: 3px 0 0; color: var(--text-muted); }
-.form-grid { display: grid; grid-template-columns: minmax(0, 1fr) 132px; gap: 14px; }
-.form-grid label { display: grid; align-content: start; gap: 6px; }
-.form-grid label > span { color: var(--text-strong); font-size: 12px; font-weight: 650; }
-.form-grid input, .form-grid select, .form-grid textarea { width: 100%; min-height: 44px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; outline: 0; background: var(--surface-input); }
-.form-grid input:focus, .form-grid select:focus, .form-grid textarea:focus { border-color: var(--focus); }
-.form-grid textarea { resize: vertical; }
-.form-grid small { color: var(--text-muted); }
-.form-grid [aria-invalid='true'] + small { color: var(--danger); }
-.host-field, .wide-field { grid-column: span 1; }
-.wide-field { grid-column: 1 / -1; }
-.editor-form footer { display: flex; justify-content: flex-end; gap: 8px; }
-
-@media (max-width: 1535px) {
-  .assets-workspace { grid-template-columns: minmax(520px, 1fr) 320px; }
-  .asset-context { display: none; }
-  .owner-select { display: block; }
+.asset-editor::backdrop {
+  background: rgba(5, 9, 14, 0.72);
+  backdrop-filter: blur(4px);
 }
 
-@media (max-width: 1350px) and (min-width: 900px) {
-  .owner-select { display: none; }
+.editor-form {
+  display: grid;
+  gap: 16px;
+  padding: 20px 22px;
 }
 
-@media (max-width: 1199px) {
-  .assets-workspace { grid-template-columns: 1fr; }
-  .asset-inspector { position: fixed; inset: 68px 0 0 auto; z-index: 25; width: min(380px, calc(100vw - 76px)); overflow: auto; border-top: 1px solid var(--line); box-shadow: var(--shadow-layer); }
-  .inspector-empty { display: none; }
+.editor-form header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.editor-form h2 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 18px;
+}
+
+.editor-form header p {
+  margin: 3px 0 0;
+  color: var(--text-muted);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 132px;
+  gap: 12px;
+}
+
+.form-grid label {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+}
+
+.form-grid label > span,
+.credential-block__head > span {
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 620;
+}
+
+.form-grid input,
+.form-grid select,
+.form-grid textarea {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-input);
+  outline: 0;
+}
+
+.form-grid input:focus,
+.form-grid select:focus,
+.form-grid textarea:focus {
+  border-color: var(--focus);
+}
+
+.form-grid textarea {
+  resize: vertical;
+}
+
+.form-grid small {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.form-grid [aria-invalid='true'] + small {
+  color: var(--danger);
+}
+
+.wide-field {
+  grid-column: 1 / -1;
+}
+
+.credential-block {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--surface-raised) 50%, var(--surface-panel));
+}
+
+.credential-block__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.inline-cred-fields {
+  display: grid;
+  gap: 10px;
+}
+
+.inline-cred-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.editor-form footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (min-width: 1181px) and (max-width: 1680px) {
+  .assets-workspace.has-selection .col-protocol,
+  .assets-workspace.has-selection .col-ownership {
+    display: none;
+  }
+
+  .assets-workspace.has-selection .asset-head,
+  .assets-workspace.has-selection .asset-table.no-ownership .asset-head {
+    min-width: 540px;
+    grid-template-columns: minmax(180px, 1.55fr) minmax(136px, 1fr) 108px minmax(105px, 0.85fr) 70px;
+  }
+
+  .assets-workspace.has-selection .asset-row,
+  .assets-workspace.has-selection .asset-table.no-ownership .asset-row {
+    min-width: 540px;
+    grid-template-columns: minmax(0, 1fr) 70px;
+  }
+
+  .assets-workspace.has-selection .asset-row__main,
+  .assets-workspace.has-selection .asset-table.no-ownership .asset-row__main {
+    grid-template-columns: minmax(180px, 1.55fr) minmax(136px, 1fr) 108px minmax(105px, 0.85fr);
+  }
+}
+
+@media (max-width: 1180px) {
+  .assets-workspace,
+  .assets-workspace.has-selection {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .asset-inspector {
+    position: fixed;
+    inset: 58px 0 0 auto;
+    z-index: 25;
+    width: min(390px, calc(100vw - 72px));
+    overflow: auto;
+    border-radius: 0;
+    border-top: 0;
+    border-right: 0;
+    border-bottom: 0;
+    box-shadow: var(--shadow-layer);
+  }
 }
 
 @media (max-width: 899px) {
-  .assets-workspace { min-height: calc(100dvh - 138px); }
-  .assets-workspace.has-selection .asset-inventory { visibility: hidden; }
-  .asset-toolbar { flex-wrap: wrap; padding: 10px; }
-  .search-control { flex-basis: calc(100% - 52px); }
-  .asset-toolbar :deep(.base-button) { width: 44px; padding: 0; font-size: 0; }
-  .compact-select { flex: 1; }
-  .compact-select select { width: 100%; }
-  .owner-select { display: none; }
-  .asset-head { display: none; }
-  .asset-table, .asset-table.no-ownership { overflow: visible; }
-  .asset-row, .asset-table.no-ownership .asset-row { min-width: 0; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 5px 12px; padding: 10px 12px; }
-  .asset-row > :nth-child(2) { grid-column: 2; grid-row: 1; }
-  .asset-row .address { grid-column: 1; grid-row: 2; padding-left: 40px; color: var(--text-muted); font-size: 12px; }
-  .asset-row .credential-cell { grid-column: 2; grid-row: 2; font-size: 11px; }
-  .asset-row > :nth-child(5) { display: none; }
-  .inventory-footer span:last-child { display: none; }
-  .asset-inspector { inset: 58px 0 calc(64px + env(safe-area-inset-bottom)); width: 100%; border: 0; background: var(--surface-canvas); box-shadow: none; }
-  .form-grid { grid-template-columns: 1fr 110px; }
+  .assets-workspace.has-selection .asset-inventory {
+    visibility: hidden;
+  }
+
+  .asset-head {
+    display: none;
+  }
+
+  .asset-table,
+  .asset-table.no-ownership {
+    overflow: visible;
+  }
+
+  .asset-row,
+  .asset-table.no-ownership .asset-row {
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    padding: 6px 10px 6px 0;
+  }
+
+  .asset-row__quick {
+    padding-top: 8px;
+  }
+
+  .asset-row__main,
+  .asset-table.no-ownership .asset-row__main {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    gap: 6px 8px;
+    padding: 8px 4px 8px 12px;
+  }
+
+  .asset-row__main .col-protocol,
+  .asset-row__main .col-credential,
+  .asset-row__main .col-ownership {
+    display: none;
+  }
+
+  .asset-row__main .asset-name {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .asset-row__main .col-health {
+    grid-column: 1;
+    grid-row: 2;
+    padding-left: 40px;
+  }
+
+  .asset-row__main .address {
+    grid-column: 2;
+    grid-row: 2;
+    color: var(--text-muted);
+    font-size: 11.5px;
+  }
+
+  .asset-inspector {
+    inset: 54px 0 calc(62px + env(safe-area-inset-bottom));
+    width: 100%;
+    border: 0;
+    background: var(--surface-canvas);
+    box-shadow: none;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr 110px;
+  }
 }
 
-@media (max-width: 520px) {
-  .form-grid { grid-template-columns: 1fr; }
-  .host-field, .wide-field { grid-column: 1; }
-  .editor-form footer { display: grid; grid-template-columns: 1fr; }
-  .editor-form footer :deep(.base-button) { width: 100%; }
+@media (max-width: 560px) {
+  .form-grid,
+  .inline-cred-row,
+  .inspector-actions__row {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-form footer {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .editor-form footer :deep(.base-button) {
+    width: 100%;
+  }
 }
 </style>

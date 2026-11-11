@@ -31,7 +31,12 @@ function jsonResponse(value: unknown, init: ResponseInit = {}): Response {
 describe('createFetchHopApi', () => {
   it('normalizes the base URL, authenticates, maps status, and reports real capabilities', async () => {
     const stub = queuedFetch([
-      jsonResponse({ status: 'ok', version: '0.2.1', catalog_revision: 42 }),
+      jsonResponse({
+        status: 'ok',
+        version: '0.2.9',
+        catalog_revision: 42,
+        ssh_listen: '0.0.0.0:2222',
+      }),
     ])
     const api = createFetchHopApi({
       baseUrl: 'https://hop.example/',
@@ -41,14 +46,90 @@ describe('createFetchHopApi', () => {
 
     await expect(api.getStatus()).resolves.toEqual({
       status: 'ok',
-      version: '0.2.1',
+      version: '0.2.9',
       catalogRevision: 42,
+      sshListen: '0.0.0.0:2222',
     })
-    expect(api.capabilities).toEqual({ ownership: true, assetHealth: false })
+    expect(api.capabilities).toEqual({
+      ownership: true,
+      assetHealth: true,
+      auditEvents: true,
+    })
     expect(stub.calls[0]?.input).toBe('https://hop.example/api/v1/status')
     const headers = new Headers(stub.calls[0]?.init?.headers)
     expect(headers.get('Authorization')).toBe('Bearer management-token')
     expect(headers.get('Content-Type')).toBeNull()
+  })
+
+  it('maps asset health, probe endpoints, and audit events', async () => {
+    const stub = queuedFetch([
+      jsonResponse({
+        id: 'asset-1',
+        name: 'hk-edge-01',
+        protocol: 'ssh',
+        hostname: '203.0.113.10',
+        port: 22,
+        display_name: 'HK Edge',
+        description: null,
+        tags: ['edge'],
+        credential_id: 'cred-1',
+        created_at: '2026-08-14 09:00:00',
+        updated_at: '2026-08-14 09:00:00',
+        ownership: 'local',
+        health: {
+          asset_id: 'asset-1',
+          status: 'healthy',
+          checked_at: '2026-08-14 09:01:00',
+          last_success_at: '2026-08-14 09:01:00',
+          latency_ms: 14,
+          error_code: null,
+          error_message: null,
+        },
+      }),
+      jsonResponse([
+        {
+          id: 'audit-1',
+          occurred_at: '2026-08-14 09:01:00',
+          actor_label: 'api-token',
+          action: 'asset.probe',
+          target_type: 'asset',
+          target_id: 'asset-1',
+          target_label: 'hk-edge-01',
+          result: 'success',
+          source_ip: null,
+          details_json: '{"latency_ms":14}',
+        },
+      ]),
+    ])
+    const api = createFetchHopApi({ baseUrl: '', token: 'token', fetch: stub.fetch })
+
+    const probed = await api.probeAsset('asset-1')
+    expect(probed.displayName).toBe('HK Edge')
+    expect(probed.health).toEqual({
+      status: 'healthy',
+      checkedAt: '2026-08-14 09:01:00',
+      lastSuccessAt: '2026-08-14 09:01:00',
+      latencyMs: 14,
+    })
+    expect(stub.calls[0]?.input).toBe('/api/v1/assets/asset-1/probe')
+    expect(stub.calls[0]?.init?.method).toBe('POST')
+
+    const events = await api.listAuditEvents()
+    expect(events).toEqual([
+      {
+        id: 'audit-1',
+        occurredAt: '2026-08-14 09:01:00',
+        actorLabel: 'api-token',
+        action: 'asset.probe',
+        targetType: 'asset',
+        targetId: 'asset-1',
+        targetLabel: 'hk-edge-01',
+        result: 'success',
+        sourceIp: null,
+        detailsJson: '{"latency_ms":14}',
+      },
+    ])
+    expect(stub.calls[1]?.input).toBe('/api/v1/audit-events')
   })
 
   it('maps key+passphrase responses and key_passphrase request bodies', async () => {
@@ -134,9 +215,9 @@ describe('createFetchHopApi', () => {
     const stub = queuedFetch([
       jsonResponse(
         {
-          code: 'revision_conflict',
-          path: 'catalog_revision',
-          message: 'base revision 4 does not match current revision 5',
+          code: 'managed_by_source',
+          path: 'asset',
+          message: 'resource is managed by configuration',
         },
         { status: 409 },
       ),
@@ -144,18 +225,18 @@ describe('createFetchHopApi', () => {
     const api = createFetchHopApi({ baseUrl: 'https://hop.example', token: 'token', fetch: stub.fetch })
 
     await expect(
-      api.applyManifest({
-        content: 'api_version: hop/v1alpha1\n',
-        format: 'yaml',
-        sourceId: 'panel',
-        baseRevision: 4,
+      api.updateAsset('asset-1', {
+        name: 'prod',
+        protocol: 'ssh',
+        hostname: '10.0.0.1',
+        port: 22,
       }),
     ).rejects.toMatchObject<Partial<HopApiError>>({
       name: 'HopApiError',
       kind: 'http',
       status: 409,
-      code: 'revision_conflict',
-      path: 'catalog_revision',
+      code: 'managed_by_source',
+      path: 'asset',
       retryable: false,
     })
   })

@@ -2,12 +2,9 @@ import { useMutation, useQueryClient, type QueryClient, type QueryKey } from '@t
 
 import type {
   AccessKeyCreateInput,
-  ApplyManifestInput,
   AssetWriteInput,
   CredentialWriteInput,
-  DiffManifestInput,
   KnownHostIdentity,
-  ValidateManifestInput,
 } from '@/domain'
 
 import { hopQueryKeys } from './keys'
@@ -41,6 +38,7 @@ function catalogMutationKeys(scope: string, resourceKey: QueryKey): QueryKey[] {
   return [
     hopQueryKeys.status(scope),
     hopQueryKeys.revision(scope),
+    hopQueryKeys.auditEvents(scope),
     resourceKey,
   ]
 }
@@ -81,6 +79,36 @@ export function useDeleteAssetMutation() {
       return invalidateKeys(queryClient, [
         ...catalogMutationKeys(scope, hopQueryKeys.assets(scope)),
         hopQueryKeys.accessKeys(scope),
+      ])
+    },
+  })
+}
+
+export function useProbeAssetsMutation() {
+  const runtime = useHopApiRuntime()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => runtime.requireApi().probeAssets(),
+    onSuccess: () => {
+      const scope = runtime.scope.value
+      return invalidateKeys(queryClient, [
+        hopQueryKeys.assets(scope),
+        hopQueryKeys.auditEvents(scope),
+      ])
+    },
+  })
+}
+
+export function useProbeAssetMutation() {
+  const runtime = useHopApiRuntime()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => runtime.requireApi().probeAsset(id),
+    onSuccess: () => {
+      const scope = runtime.scope.value
+      return invalidateKeys(queryClient, [
+        hopQueryKeys.assets(scope),
+        hopQueryKeys.auditEvents(scope),
       ])
     },
   })
@@ -185,8 +213,13 @@ export function useTerminateSessionMutation() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => runtime.requireApi().terminateSession(id),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: hopQueryKeys.sessions(runtime.scope.value) }),
+    onSuccess: () => {
+      const scope = runtime.scope.value
+      return invalidateKeys(queryClient, [
+        hopQueryKeys.sessions(scope),
+        hopQueryKeys.auditEvents(scope),
+      ])
+    },
   })
 }
 
@@ -195,31 +228,12 @@ export function useResetKnownHostMutation() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (identity: KnownHostIdentity) => runtime.requireApi().resetKnownHost(identity),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: hopQueryKeys.knownHosts(runtime.scope.value) }),
-  })
-}
-
-export function useValidateManifestMutation() {
-  const runtime = useHopApiRuntime()
-  return useMutation({
-    mutationFn: (input: ValidateManifestInput) => runtime.requireApi().validateManifest(input),
-  })
-}
-
-export function useDiffManifestMutation() {
-  const runtime = useHopApiRuntime()
-  return useMutation({
-    mutationFn: (input: DiffManifestInput) => runtime.requireApi().diffManifest(input),
-  })
-}
-
-export function useApplyManifestMutation() {
-  const runtime = useHopApiRuntime()
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (input: ApplyManifestInput) => runtime.requireApi().applyManifest(input),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: hopQueryKeys.all(runtime.scope.value) }),
+    onSuccess: () => {
+      const scope = runtime.scope.value
+      return invalidateKeys(queryClient, [
+        hopQueryKeys.knownHosts(scope),
+        hopQueryKeys.auditEvents(scope),
+      ])
+    },
   })
 }

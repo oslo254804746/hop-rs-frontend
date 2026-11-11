@@ -9,4 +9,5 @@ export const hopQueryKeys = {
   accessKeys: (scope: string) => [...hopQueryKeys.catalog(scope), 'access-keys'] as const,
   sessions: (scope: string) => [...hopQueryKeys.all(scope), 'sessions'] as const,
   knownHosts: (scope: string) => [...hopQueryKeys.all(scope), 'known-hosts'] as const,
+  auditEvents: (scope: string) => [...hopQueryKeys.all(scope), 'audit-events'] as const,
 }

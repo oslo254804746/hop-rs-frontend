@@ -1,20 +1,16 @@
 import type {
   AccessKey,
   AccessKeyCreateInput,
-  ApplyManifestInput,
-  ApplySummary,
   Asset,
   AssetWriteInput,
+  AuditEvent,
   Credential,
   CredentialWriteInput,
-  DiffManifestInput,
   InstanceStatus,
   KnownHost,
   KnownHostIdentity,
   Session,
   TerminateSessionResult,
-  ValidateManifestInput,
-  ValidationResult,
 } from './models'
 
 export type HopApiMode = 'remote' | 'demo'
@@ -22,18 +18,22 @@ export type HopApiMode = 'remote' | 'demo'
 export interface HopApiCapabilities {
   /** Whether list responses expose local/declarative ownership metadata. */
   ownership: boolean
-  /** Whether assets include observed reachability/latency state. */
+  /** Whether assets include observed reachability/latency state and on-demand probing. */
   assetHealth: boolean
+  /** Whether control-plane audit events are exposed via the API. */
+  auditEvents: boolean
 }
 
 export const REMOTE_HOP_API_CAPABILITIES: Readonly<HopApiCapabilities> = Object.freeze({
   ownership: true,
-  assetHealth: false,
+  assetHealth: true,
+  auditEvents: true,
 })
 
 export const DEMO_HOP_API_CAPABILITIES: Readonly<HopApiCapabilities> = Object.freeze({
   ownership: true,
   assetHealth: true,
+  auditEvents: true,
 })
 
 export interface RequestOptions {
@@ -51,6 +51,8 @@ export interface HopApi {
   createAsset(input: AssetWriteInput, options?: RequestOptions): Promise<Asset>
   updateAsset(id: string, input: AssetWriteInput, options?: RequestOptions): Promise<Asset>
   deleteAsset(id: string, options?: RequestOptions): Promise<void>
+  probeAssets(options?: RequestOptions): Promise<Asset[]>
+  probeAsset(id: string, options?: RequestOptions): Promise<Asset>
 
   listCredentials(options?: RequestOptions): Promise<Credential[]>
   createCredential(input: CredentialWriteInput, options?: RequestOptions): Promise<Credential>
@@ -81,10 +83,5 @@ export interface HopApi {
   listKnownHosts(options?: RequestOptions): Promise<KnownHost[]>
   resetKnownHost(identity: KnownHostIdentity, options?: RequestOptions): Promise<void>
 
-  validateManifest(
-    input: ValidateManifestInput,
-    options?: RequestOptions,
-  ): Promise<ValidationResult>
-  diffManifest(input: DiffManifestInput, options?: RequestOptions): Promise<ApplySummary>
-  applyManifest(input: ApplyManifestInput, options?: RequestOptions): Promise<ApplySummary>
+  listAuditEvents(options?: RequestOptions): Promise<AuditEvent[]>
 }

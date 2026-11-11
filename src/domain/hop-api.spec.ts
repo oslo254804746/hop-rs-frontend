@@ -8,9 +8,17 @@ import {
 } from '@/domain'
 
 describe('Hop API domain boundary', () => {
-  it('keeps server capability gaps explicit', () => {
-    expect(REMOTE_HOP_API_CAPABILITIES).toEqual({ ownership: true, assetHealth: false })
-    expect(DEMO_HOP_API_CAPABILITIES).toEqual({ ownership: true, assetHealth: true })
+  it('exposes converged v0.2.9 capabilities on remote and demo adapters', () => {
+    expect(REMOTE_HOP_API_CAPABILITIES).toEqual({
+      ownership: true,
+      assetHealth: true,
+      auditEvents: true,
+    })
+    expect(DEMO_HOP_API_CAPABILITIES).toEqual({
+      ownership: true,
+      assetHealth: true,
+      auditEvents: true,
+    })
 
     expect(() => {
       ;(REMOTE_HOP_API_CAPABILITIES as HopApiCapabilities).ownership = false

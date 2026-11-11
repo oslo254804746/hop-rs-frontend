@@ -32,6 +32,7 @@ export interface InstanceStatus {
   status: 'ok'
   version: string
   catalogRevision: number
+  sshListen?: string
 }
 
 export interface Asset {
@@ -40,6 +41,7 @@ export interface Asset {
   protocol: AssetProtocol
   hostname: string
   port: number
+  displayName?: string | null
   description: string | null
   tags: string[]
   credentialId: string | null
@@ -54,6 +56,7 @@ export interface AssetWriteInput {
   protocol: AssetProtocol
   hostname: string
   port: number
+  displayName?: string | null
   description?: string | null
   tags?: string[]
   credentialId?: string | null
@@ -131,80 +134,15 @@ export interface KnownHostIdentity {
   keyType: string
 }
 
-export interface ConfigSourceStatus {
-  sourceId: string
-  generation: number
-  lastSuccessAt: Timestamp | null
-  lastSuccessRevision: number | null
-  lastErrorAt: Timestamp | null
-  lastErrorCode: string | null
-  lastErrorMessage: string | null
-}
-
-export interface OrphanStatus {
-  resourceType: string
-  sourceId: string
-  sourceKey: string
-  orphanedAt: Timestamp
-}
-
-export interface CatalogStatus {
-  revision: number
-  manifestApiVersion: string
-  sources: ConfigSourceStatus[]
-  orphans: OrphanStatus[]
-}
-
-export type ManifestFormat = 'yaml' | 'toml'
-
-export interface ManifestInput {
-  content: string
-  format: ManifestFormat
-}
-
-export interface ValidateManifestInput extends ManifestInput {
-  offline?: boolean
-}
-
-export interface ValidationResult {
-  valid: true
-  offline: boolean
-}
-
-export interface DiffManifestInput extends ManifestInput {
-  sourceId: string
-  prune?: boolean
-}
-
-export interface ApplyManifestInput extends ManifestInput {
-  sourceId: string
-  baseRevision: number
-  prune?: boolean
-  dryRun?: boolean
-}
-
-export type ApplyAction = 'created' | 'updated' | 'deleted' | 'orphaned' | 'unchanged'
-
-export interface ApplyChange {
-  resourceType: string
-  name: string
-  action: ApplyAction
-}
-
-export interface ApplySummary {
-  sourceId: string
-  baseRevision: number
-  newRevision: number
-  generation: number
-  dryRun: boolean
-  created: number
-  updated: number
-  deleted: number
-  orphaned: number
-  unchanged: number
-  changes: ApplyChange[]
-}
-
-export interface ReloadResult {
-  applied: ApplySummary[]
+export interface AuditEvent {
+  id: string
+  occurredAt: Timestamp | null
+  actorLabel: string
+  action: string
+  targetType: string
+  targetId: string | null
+  targetLabel: string | null
+  result: string
+  sourceIp: string | null
+  detailsJson: string | null
 }
