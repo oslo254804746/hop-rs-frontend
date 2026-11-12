@@ -2,13 +2,21 @@ import type {
   AccessKey,
   AccessKeyCreateInput,
   Asset,
+  AssetProbeSample,
   AssetWriteInput,
   AuditEvent,
+  BootstrapKeyInput,
+  BootstrapKeyResult,
   Credential,
   CredentialWriteInput,
   InstanceStatus,
   KnownHost,
   KnownHostIdentity,
+  NotificationChannel,
+  NotificationChannelWriteInput,
+  NotificationTestResult,
+  ProbeSettings,
+  ProbeSettingsWriteInput,
   Session,
   TerminateSessionResult,
 } from './models'
@@ -53,6 +61,39 @@ export interface HopApi {
   deleteAsset(id: string, options?: RequestOptions): Promise<void>
   probeAssets(options?: RequestOptions): Promise<Asset[]>
   probeAsset(id: string, options?: RequestOptions): Promise<Asset>
+  bootstrapAssetKey(
+    id: string,
+    input: BootstrapKeyInput,
+    options?: RequestOptions,
+  ): Promise<BootstrapKeyResult>
+  getAllProbeHistory(
+    limit?: number,
+    options?: RequestOptions,
+  ): Promise<Record<string, AssetProbeSample[]>>
+  getAssetProbeHistory(
+    id: string,
+    limit?: number,
+    options?: RequestOptions,
+  ): Promise<AssetProbeSample[]>
+
+  getProbeSettings(options?: RequestOptions): Promise<ProbeSettings>
+  updateProbeSettings(
+    input: ProbeSettingsWriteInput,
+    options?: RequestOptions,
+  ): Promise<ProbeSettings>
+
+  listNotificationChannels(options?: RequestOptions): Promise<NotificationChannel[]>
+  createNotificationChannel(
+    input: NotificationChannelWriteInput,
+    options?: RequestOptions,
+  ): Promise<NotificationChannel>
+  updateNotificationChannel(
+    id: string,
+    input: NotificationChannelWriteInput,
+    options?: RequestOptions,
+  ): Promise<NotificationChannel>
+  deleteNotificationChannel(id: string, options?: RequestOptions): Promise<void>
+  testNotificationChannel(id: string, options?: RequestOptions): Promise<NotificationTestResult>
 
   listCredentials(options?: RequestOptions): Promise<Credential[]>
   createCredential(input: CredentialWriteInput, options?: RequestOptions): Promise<Credential>

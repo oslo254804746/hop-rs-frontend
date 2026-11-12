@@ -140,4 +140,45 @@ describe('createDemoHopApi', () => {
       }),
     ).rejects.toMatchObject<Partial<HopApiError>>({ status: 404, code: 'not_found' })
   })
+
+  it('supports v0.3.0 bootstrapAssetKey, via_asset cycle rejection, probe history, and alert channels', async () => {
+    const api = createDemoHopApi()
+
+    const history = await api.getAllProbeHistory(12)
+    expect(history['asset-prod-gateway']?.length).toBeLessThanOrEqual(12)
+
+    await expect(
+      api.updateAsset('asset-staging-node', {
+        name: 'staging-node',
+        protocol: 'ssh',
+        hostname: '10.24.1.18',
+        port: 22,
+        credentialId: 'credential-deploy',
+        viaAssetId: 'asset-staging-node',
+      }),
+    ).rejects.toMatchObject<Partial<HopApiError>>({ status: 422, code: 'validation_failed' })
+
+    const bootstrapped = await api.bootstrapAssetKey('asset-staging-node', {
+      username: 'root',
+      password: 'initial-root-password',
+      disablePasswordAuth: true,
+    })
+    expect(bootstrapped.verifiedKeyLogin).toBe(true)
+    expect(bootstrapped.passwordAuthDisabled).toBe(true)
+    expect(bootstrapped.asset.credentialId).toBe(bootstrapped.credential.id)
+
+    const updatedPolicy = await api.updateProbeSettings({
+      enabled: true,
+      intervalSeconds: 120,
+      timeoutMs: 3500,
+      failureThreshold: 3,
+      notifyOnRecovery: true,
+    })
+    expect(updatedPolicy.failureThreshold).toBe(3)
+
+    const channels = await api.listNotificationChannels()
+    expect(channels.length).toBeGreaterThanOrEqual(2)
+    const testResult = await api.testNotificationChannel(channels[0]!.id)
+    expect(testResult).toEqual({ delivered: true })
+  })
 })

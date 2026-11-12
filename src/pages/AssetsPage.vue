@@ -8,6 +8,7 @@ import {
   CircleDot,
   Copy,
   Filter,
+  KeyRound,
   Pencil,
   Plus,
   Search,
@@ -21,6 +22,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { z } from 'zod'
 
 import { getPanelRuntimeConfig } from '@/api'
+import BootstrapKeyDialog from '@/components/assets/BootstrapKeyDialog.vue'
 import SshConfigDialog from '@/components/assets/SshConfigDialog.vue'
 import { BaseButton, ConfirmDialog, EmptyState, InlineNotice, StatusBadge } from '@/components/ui'
 import type {
@@ -32,6 +34,7 @@ import type {
 } from '@/domain'
 import { useI18n } from '@/i18n'
 import {
+  useAllProbeHistoryQuery,
   useAssetsQuery,
   useCreateAssetMutation,
   useCreateCredentialMutation,
@@ -73,6 +76,7 @@ const router = useRouter()
 const runtime = useHopApiRuntime()
 const connection = useConnection()
 const assetsQuery = useAssetsQuery()
+const probeHistoryQuery = useAllProbeHistoryQuery()
 const credentialsQuery = useCredentialsQuery()
 const createMutation = useCreateAssetMutation()
 const updateMutation = useUpdateAssetMutation()
@@ -98,6 +102,7 @@ const editorOpen = ref(false)
 const editingAsset = ref<Asset | null>(null)
 const deleteOpen = ref(false)
 const sshConfigOpen = ref(false)
+const bootstrapOpen = ref(false)
 const feedback = ref('')
 const fieldErrors = ref<Record<string, string>>({})
 const selectionOpenedHere = ref(false)
@@ -124,6 +129,8 @@ const form = reactive({
   description: '',
   tags: '',
   credentialId: '',
+  viaAssetId: '',
+  allowTcpForwarding: true,
 })
 
 const selectedId = computed(() =>
@@ -131,6 +138,19 @@ const selectedId = computed(() =>
 )
 const selectedAsset = computed(
   () => assetsQuery.data.value?.find((asset) => asset.id === selectedId.value) ?? null,
+)
+const selectedBoundCredential = computed(() => {
+  const credentialId = selectedAsset.value?.credentialId
+  if (!credentialId) return null
+  return credentialsQuery.data.value?.find((cred) => cred.id === credentialId) ?? null
+})
+const jumpCandidates = computed(() =>
+  (assetsQuery.data.value ?? []).filter(
+    (asset) =>
+      asset.protocol === 'ssh' &&
+      asset.credentialId !== null &&
+      asset.id !== editingAsset.value?.id,
+  ),
 )
 const hasOwnership = computed(() => runtime.capabilities.value?.ownership === true)
 
@@ -160,6 +180,7 @@ const filteredAssets = computed(() => {
         asset.hostname,
         String(asset.port),
         asset.description ?? '',
+        asset.viaAssetName ?? '',
         ...asset.tags,
       ]
         .join(' ')
@@ -204,6 +225,43 @@ function credentialName(asset: Asset) {
     credentialsQuery.data.value?.find((credential) => credential.id === asset.credentialId)?.name ??
     t('Configured')
   )
+}
+
+function viaLabelFor(asset: Asset): string | null {
+  if (asset.viaAssetName) return asset.viaAssetName
+  if (!asset.viaAssetId) return null
+  return (
+    assetsQuery.data.value?.find((candidate) => candidate.id === asset.viaAssetId)?.name ??
+    asset.viaAssetId
+  )
+}
+
+interface ProbeSparkTick {
+  key: string
+  className: string
+}
+
+function probeSparkTicks(assetId: string, count = 24): ProbeSparkTick[] {
+  const samples = probeHistoryQuery.data.value?.[assetId] ?? []
+  const recent = samples.slice(-count)
+  const padCount = Math.max(0, count - recent.length)
+  const ticks: ProbeSparkTick[] = []
+  for (let idx = 0; idx < padCount; idx += 1) {
+    ticks.push({ key: `pad-${idx}`, className: '' })
+  }
+  for (const sample of recent) {
+    let className = ''
+    if (sample.status === 'failed') {
+      className = 'probe-tick--fail'
+    } else if (sample.status === 'healthy') {
+      className =
+        sample.latencyMs !== null && sample.latencyMs >= 110
+          ? 'probe-tick--slow'
+          : 'probe-tick--ok'
+    }
+    ticks.push({ key: `sample-${sample.id}`, className })
+  }
+  return ticks
 }
 
 function ownershipLabel(asset: Asset) {
@@ -316,6 +374,8 @@ function openCreate() {
     description: '',
     tags: '',
     credentialId: '',
+    viaAssetId: '',
+    allowTcpForwarding: true,
   })
   resetInlineCredential()
   fieldErrors.value = {}
@@ -335,6 +395,8 @@ function openEdit(asset: Asset) {
     description: asset.description ?? '',
     tags: asset.tags.join(', '),
     credentialId: asset.credentialId ?? '',
+    viaAssetId: asset.viaAssetId ?? '',
+    allowTcpForwarding: asset.allowTcpForwarding !== false,
   })
   resetInlineCredential()
   fieldErrors.value = {}
@@ -417,6 +479,8 @@ async function submitAsset() {
         .map((tag) => tag.trim())
         .filter(Boolean),
       credentialId: resolvedCredentialId,
+      viaAssetId: form.viaAssetId || null,
+      allowTcpForwarding: result.data.protocol === 'ssh' ? form.allowTcpForwarding : true,
     }
 
     const saved = editingAsset.value
@@ -671,6 +735,7 @@ watch([search, protocol], () => {
                   <span class="asset-name__title">
                     <strong>{{ asset.name }}</strong>
                     <em v-if="asset.displayName">{{ asset.displayName }}</em>
+                    <span v-if="viaLabelFor(asset)" class="via-pill">via {{ viaLabelFor(asset) }}</span>
                   </span>
                   <small>
                     {{ asset.description || asset.tags.map((tag) => `#${tag}`).join(' ') || t('No description') }}
@@ -684,10 +749,18 @@ watch([search, protocol], () => {
 
               <span class="mono address tabular" role="cell">{{ asset.hostname }}:{{ asset.port }}</span>
 
-              <span class="col-health" role="cell">
+              <span class="col-health health-cell" role="cell">
                 <span class="rtt-pill" :class="healthPillClass(asset)">
                   <span class="rtt-pill__dot" aria-hidden="true" />
                   {{ healthPillLabel(asset) }}
+                </span>
+                <span class="probe-spark" aria-hidden="true">
+                  <span
+                    v-for="tick in probeSparkTicks(asset.id, 14)"
+                    :key="tick.key"
+                    class="probe-tick"
+                    :class="tick.className"
+                  />
                 </span>
               </span>
 
@@ -830,10 +903,29 @@ watch([search, protocol], () => {
                 {{ t(selectedAsset.protocol === 'ssh' ? 'TCP + SSH banner check from Hop' : 'TCP port check from Hop') }}
               </small>
             </div>
-            <span class="rtt-pill" :class="healthPillClass(selectedAsset)">
-              <span class="rtt-pill__dot" aria-hidden="true" />
-              {{ healthPillLabel(selectedAsset) }}
-            </span>
+            <div class="health-card__pills">
+              <StatusBadge
+                v-if="selectedAsset.health?.alertFiring"
+                :label="t('Alert firing')"
+                tone="danger"
+              />
+              <span class="rtt-pill" :class="healthPillClass(selectedAsset)">
+                <span class="rtt-pill__dot" aria-hidden="true" />
+                {{ healthPillLabel(selectedAsset) }}
+              </span>
+            </div>
+          </div>
+
+          <div class="probe-history-block">
+            <span class="probe-history-label">{{ t('Recent 24 probes') }}</span>
+            <div class="probe-spark probe-spark--wide" aria-hidden="true">
+              <span
+                v-for="tick in probeSparkTicks(selectedAsset.id, 24)"
+                :key="tick.key"
+                class="probe-tick"
+                :class="tick.className"
+              />
+            </div>
           </div>
 
           <p
@@ -869,6 +961,19 @@ watch([search, protocol], () => {
             <dt>{{ t('Address') }}</dt>
             <dd class="mono tabular">{{ selectedAsset.hostname }}:{{ selectedAsset.port }}</dd>
           </div>
+          <div>
+            <dt>{{ t('Jump via') }}</dt>
+            <dd>
+              <span v-if="viaLabelFor(selectedAsset)" class="via-pill">
+                via {{ viaLabelFor(selectedAsset) }}
+              </span>
+              <span v-else>{{ t('Direct from Hop') }}</span>
+            </dd>
+          </div>
+          <div v-if="selectedAsset.protocol === 'ssh'">
+            <dt>{{ t('TCP port forwarding') }}</dt>
+            <dd>{{ t(selectedAsset.allowTcpForwarding !== false ? 'Enabled (-L / -D / IDE)' : 'Disabled') }}</dd>
+          </div>
           <div v-if="selectedAsset.displayName">
             <dt>{{ t('Display name') }}</dt>
             <dd>{{ selectedAsset.displayName }}</dd>
@@ -903,6 +1008,14 @@ watch([search, protocol], () => {
 
         <section v-if="selectedAsset.management?.mode !== 'config'" class="inspector-actions">
           <h3>{{ t('Actions') }}</h3>
+          <BaseButton
+            v-if="selectedAsset.protocol === 'ssh'"
+            variant="primary"
+            @click="bootstrapOpen = true"
+          >
+            <template #leading><KeyRound /></template>
+            {{ t('Bootstrap SSH key') }}
+          </BaseButton>
           <div class="inspector-actions__row">
             <BaseButton variant="secondary" @click="openEdit(selectedAsset)">
               <template #leading><Pencil /></template>
@@ -966,6 +1079,21 @@ watch([search, protocol], () => {
             <span>{{ t('Port') }}</span>
             <input v-model.number="form.port" type="number" min="1" max="65535" :aria-invalid="Boolean(fieldErrors.port)" />
             <small v-if="fieldErrors.port">{{ fieldErrors.port }}</small>
+          </label>
+
+          <label class="wide-field">
+            <span>{{ t('Jump via') }}</span>
+            <select v-model="form.viaAssetId">
+              <option value="">{{ t('Direct from Hop') }}</option>
+              <option
+                v-for="candidate in jumpCandidates"
+                :key="candidate.id"
+                :value="candidate.id"
+              >
+                {{ candidate.name }} ({{ candidate.hostname }}:{{ candidate.port }})
+              </option>
+            </select>
+            <small>{{ t('Select a managed SSH jump asset (up to 4 hops).') }}</small>
           </label>
 
           <div v-if="form.protocol === 'ssh'" class="wide-field credential-block">
@@ -1040,6 +1168,11 @@ watch([search, protocol], () => {
             </div>
           </div>
 
+          <label v-if="form.protocol === 'ssh'" class="wide-field forwarding-toggle">
+            <input v-model="form.allowTcpForwarding" type="checkbox" />
+            <span>{{ t('Allow -L / -D / Cursor Remote-SSH forwarding') }}</span>
+          </label>
+
           <label class="wide-field">
             <span>{{ t('Tags') }}</span>
             <input v-model="form.tags" placeholder="production, edge, hk" />
@@ -1069,6 +1202,12 @@ watch([search, protocol], () => {
       v-model:open="sshConfigOpen"
       :assets="assetsQuery.data.value ?? []"
       :credentials="credentialsQuery.data.value ?? []"
+    />
+
+    <BootstrapKeyDialog
+      v-model:open="bootstrapOpen"
+      :asset="selectedAsset"
+      :bound-credential="selectedBoundCredential"
     />
 
     <ConfirmDialog
@@ -1252,24 +1391,28 @@ watch([search, protocol], () => {
   gap: 10px;
 }
 
+.asset-row__main > span.asset-name {
+  white-space: normal;
+}
+
 .asset-name__copy {
   display: grid;
   min-width: 0;
-  gap: 1px;
+  gap: 2px;
 }
 
 .asset-name__title {
   display: flex;
   min-width: 0;
-  align-items: baseline;
-  gap: 7px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px 7px;
 }
 
 .asset-name__title strong {
-  overflow: hidden;
+  flex: 0 0 auto;
   color: var(--text-strong);
   font-weight: 620;
-  text-overflow: ellipsis;
 }
 
 .asset-name__title em {
@@ -1278,6 +1421,7 @@ watch([search, protocol], () => {
   font-size: 12px;
   font-style: normal;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .asset-name small {
@@ -1309,6 +1453,12 @@ watch([search, protocol], () => {
 .address {
   color: var(--text-strong);
   font-size: 12.5px;
+}
+
+.health-cell {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
 }
 
 .credential-cell {
@@ -1419,6 +1569,7 @@ watch([search, protocol], () => {
   color: var(--text-strong);
   font-size: 16px;
   font-weight: 650;
+  letter-spacing: -0.02em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1513,9 +1664,29 @@ watch([search, protocol], () => {
   gap: 10px;
 }
 
+.health-card__pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .health-card__sub {
   color: var(--text-muted);
   font-size: 11.5px;
+}
+
+.probe-history-block {
+  display: grid;
+  gap: 5px;
+  padding-top: 2px;
+}
+
+.probe-history-label {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .health-error {
@@ -1548,7 +1719,7 @@ watch([search, protocol], () => {
 
 .inspector-fields > div {
   display: grid;
-  grid-template-columns: 92px minmax(0, 1fr);
+  grid-template-columns: 102px minmax(0, 1fr);
   gap: 10px;
   min-height: 38px;
   align-items: center;
@@ -1696,6 +1867,25 @@ watch([search, protocol], () => {
 
 .wide-field {
   grid-column: 1 / -1;
+}
+
+.form-grid label.forwarding-toggle {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface-input);
+  cursor: pointer;
+}
+
+.form-grid label.forwarding-toggle input[type='checkbox'] {
+  width: 16px;
+  min-height: 16px;
+  height: 16px;
+  padding: 0;
+  accent-color: var(--accent);
 }
 
 .credential-block {

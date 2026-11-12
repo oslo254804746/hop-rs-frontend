@@ -118,8 +118,8 @@ function useDemo() {
   state.mode = 'demo'
   state.token = ''
   state.insecureToken = false
-  state.version = '0.2.9-demo'
-  state.revision = 128
+  state.version = '0.3.0-demo'
+  state.revision = 132
   state.sshListen = '0.0.0.0:2222'
   state.error = null
 }

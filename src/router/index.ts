@@ -47,6 +47,12 @@ export const router = createRouter({
       meta: { title: 'Host trust' },
     },
     {
+      path: '/alerts',
+      name: 'alerts',
+      component: () => import('@/pages/AlertsPage.vue'),
+      meta: { title: 'Alerts' },
+    },
+    {
       path: '/audit',
       name: 'audit',
       component: () => import('@/pages/AuditPage.vue'),

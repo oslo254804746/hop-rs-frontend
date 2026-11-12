@@ -2,10 +2,17 @@ import {
   DEMO_HOP_API_CAPABILITIES,
   type AccessKey,
   type Asset,
+  type AssetProbeSample,
   type AssetWriteInput,
+  type BootstrapKeyInput,
+  type BootstrapKeyResult,
   type Credential,
   type CredentialWriteInput,
   type HopApi,
+  type NotificationChannel,
+  type NotificationChannelWriteInput,
+  type ProbeSettings,
+  type ProbeSettingsWriteInput,
   type RequestOptions,
 } from '@/domain'
 import { HopApiError } from '@/api/errors'
@@ -17,8 +24,22 @@ export interface DemoHopApiOptions {
 }
 
 export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
-  const state = clone(options.fixtures ?? createDemoFixtures())
+  const baseFixtures = options.fixtures ?? createDemoFixtures()
+  const state = clone({
+    ...baseFixtures,
+    probeHistory: baseFixtures.probeHistory ?? {},
+    probeSettings: baseFixtures.probeSettings ?? {
+      enabled: false,
+      intervalSeconds: 300,
+      timeoutMs: 4000,
+      failureThreshold: 2,
+      notifyOnRecovery: true,
+      updatedAt: null,
+    },
+    notificationChannels: baseFixtures.notificationChannels ?? [],
+  })
   let nextId = 1
+  let nextSampleId = 1000
 
   function checkRequest(optionsForRequest?: RequestOptions): void {
     if (optionsForRequest?.signal?.aborted) {
@@ -55,28 +76,63 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
     })
   }
 
+  function appendProbeSample(assetId: string, sample: Omit<AssetProbeSample, 'id' | 'assetId'>): void {
+    const list = state.probeHistory[assetId] ?? []
+    list.push({
+      id: nextSampleId++,
+      assetId,
+      ...sample,
+    })
+    if (list.length > 96) {
+      list.splice(0, list.length - 96)
+    }
+    state.probeHistory[assetId] = list
+  }
+
   function simulateProbe(asset: Asset): Asset {
     const now = demoNow()
+    const prevFailures = asset.health?.consecutiveFailures ?? 0
     if (asset.id === 'asset-router-ui' || asset.hostname.endsWith('.254')) {
+      const consecutiveFailures = prevFailures + 1
+      const alertFiring =
+        asset.health?.alertFiring === true ||
+        consecutiveFailures >= state.probeSettings.failureThreshold
       asset.health = {
         status: 'failed',
         checkedAt: now,
         lastSuccessAt: asset.health?.status === 'healthy' ? asset.health.lastSuccessAt : null,
         errorCode: 'tcp_connect_failed',
         errorMessage: `connect ${asset.hostname}:${asset.port}: connection refused`,
+        consecutiveFailures,
+        alertFiring,
       }
+      appendProbeSample(asset.id, {
+        checkedAt: now,
+        status: 'failed',
+        latencyMs: null,
+        errorCode: 'tcp_connect_failed',
+      })
       return asset
     }
     const baseSeed = [...asset.hostname].reduce((acc, ch) => acc + ch.charCodeAt(0), 0)
-    const latencyMs = asset.hostname.startsWith('192.168.')
-      ? (baseSeed % 5) + 2
-      : (baseSeed % 48) + 9
+    const hopPenalty = asset.viaAssetId ? 85 : 0
+    const latencyMs =
+      (asset.hostname.startsWith('192.168.') ? (baseSeed % 5) + 2 : (baseSeed % 48) + 9) +
+      hopPenalty
     asset.health = {
       status: 'healthy',
       checkedAt: now,
       lastSuccessAt: now,
       latencyMs,
+      consecutiveFailures: 0,
+      alertFiring: false,
     }
+    appendProbeSample(asset.id, {
+      checkedAt: now,
+      status: 'healthy',
+      latencyMs,
+      errorCode: null,
+    })
     return asset
   }
 
@@ -109,6 +165,50 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
         'catalog write conflicted with an existing or referenced resource',
       )
     }
+  }
+
+  function resolveAndValidateViaAsset(
+    targetId: string,
+    viaAssetId: string | null | undefined,
+  ): { viaAssetId: string | null; viaAssetName: string | null } {
+    const normalized = viaAssetId?.trim() || null
+    if (!normalized) {
+      return { viaAssetId: null, viaAssetName: null }
+    }
+    if (normalized === targetId) {
+      throw apiError(422, 'validation_failed', 'via_asset chain contains a cycle')
+    }
+    const seen = new Set<string>([targetId])
+    let curId: string | null = normalized
+    let hops = 0
+    while (curId) {
+      hops += 1
+      if (hops > 4) {
+        throw apiError(
+          422,
+          'validation_failed',
+          'via_asset chain exceeds maximum depth of 4 hops',
+        )
+      }
+      if (seen.has(curId)) {
+        throw apiError(422, 'validation_failed', 'via_asset chain contains a cycle')
+      }
+      seen.add(curId)
+      const parent = state.assets.find((item) => item.id === curId)
+      if (!parent) {
+        throw apiError(422, 'validation_failed', `unknown via_asset_id ${curId}`)
+      }
+      if (parent.protocol !== 'ssh' || !parent.credentialId) {
+        throw apiError(
+          422,
+          'validation_failed',
+          `via_asset ${parent.name} must be a managed SSH asset with a credential`,
+        )
+      }
+      curId = parent.viaAssetId ?? null
+    }
+    const directParent = state.assets.find((item) => item.id === normalized)!
+    return { viaAssetId: normalized, viaAssetName: directParent.name }
   }
 
   function validateAssetInput(input: AssetWriteInput): void {
@@ -158,6 +258,81 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
     }
   }
 
+  function buildNotificationChannel(
+    id: string,
+    input: NotificationChannelWriteInput,
+    existing?: NotificationChannel,
+  ): NotificationChannel {
+    const name = input.name.trim()
+    if (!name) {
+      throw apiError(422, 'validation_failed', 'notification channel name must not be empty')
+    }
+    const now = demoNow()
+    if (input.kind === 'telegram') {
+      const chatId = input.config.chatId?.trim() || existing?.config.chatId || ''
+      const hasToken =
+        hasSecret(input.config.botToken) ||
+        (existing?.kind === 'telegram' && existing.config.hasSecret)
+      if (!chatId || !hasToken) {
+        throw apiError(422, 'validation_failed', 'telegram channel requires bot_token and chat_id')
+      }
+      const apiBaseUrl = input.config.apiBaseUrl?.trim() || undefined
+      return {
+        id,
+        name,
+        kind: 'telegram',
+        enabled: input.enabled,
+        config: {
+          chatId,
+          ...(apiBaseUrl ? { apiBaseUrl } : {}),
+          hasSecret: true,
+        },
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+      }
+    }
+    if (input.kind === 'bark') {
+      const hasKey =
+        hasSecret(input.config.deviceKey) ||
+        (existing?.kind === 'bark' && existing.config.hasSecret)
+      if (!hasKey) {
+        throw apiError(422, 'validation_failed', 'bark channel requires device_key')
+      }
+      const serverUrl = input.config.serverUrl?.trim() || 'https://api.day.app'
+      return {
+        id,
+        name,
+        kind: 'bark',
+        enabled: input.enabled,
+        config: {
+          serverUrl,
+          hasSecret: true,
+        },
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+      }
+    }
+    const url = input.config.url?.trim() || existing?.config.url || ''
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      throw apiError(422, 'validation_failed', 'webhook channel requires http:// or https:// url')
+    }
+    const hasWebhookSecret =
+      hasSecret(input.config.secret) ||
+      (existing?.kind === 'webhook' && existing.config.hasSecret && input.config.secret === undefined)
+    return {
+      id,
+      name,
+      kind: 'webhook',
+      enabled: input.enabled,
+      config: {
+        url,
+        hasSecret: hasWebhookSecret,
+      },
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    }
+  }
+
   return {
     mode: 'demo',
     capabilities: DEMO_HOP_API_CAPABILITIES,
@@ -181,9 +356,11 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
       checkRequest(requestOptions)
       validateAssetInput(input)
       assertUniqueName(state.assets, input.name)
+      const id = `asset-demo-${nextId++}`
+      const { viaAssetId, viaAssetName } = resolveAndValidateViaAsset(id, input.viaAssetId)
       const now = demoNow()
       const asset: Asset = {
-        id: `asset-demo-${nextId++}`,
+        id,
         name: input.name,
         protocol: input.protocol,
         hostname: input.hostname,
@@ -192,10 +369,13 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
         description: input.description ?? null,
         tags: input.tags ?? [],
         credentialId: input.protocol === 'ssh' ? (input.credentialId ?? null) : null,
+        viaAssetId,
+        viaAssetName,
+        allowTcpForwarding: input.protocol === 'ssh' ? (input.allowTcpForwarding ?? true) : true,
         createdAt: now,
         updatedAt: now,
         management: { mode: 'local' },
-        health: { status: 'unknown', checkedAt: null },
+        health: { status: 'unknown', checkedAt: null, consecutiveFailures: 0, alertFiring: false },
       }
       state.assets.push(asset)
       incrementRevision()
@@ -203,6 +383,7 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
         protocol: asset.protocol,
         hostname: asset.hostname,
         port: asset.port,
+        ...(viaAssetName ? { via_asset: viaAssetName } : {}),
       })
       return clone(asset)
     },
@@ -214,6 +395,20 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
       const existing = state.assets[index]
       requireLocal(existing, 'asset', id)
       assertUniqueName(state.assets, input.name, id)
+      const nextCredentialId = input.protocol === 'ssh' ? (input.credentialId ?? null) : null
+      if (
+        (input.protocol !== 'ssh' || !nextCredentialId) &&
+        state.assets.some((child) => child.viaAssetId === id)
+      ) {
+        throw apiError(
+          422,
+          'validation_failed',
+          `asset ${input.name} is referenced as via_asset and must remain a managed SSH asset`,
+        )
+      }
+      const nextViaInput =
+        input.viaAssetId !== undefined ? input.viaAssetId : existing!.viaAssetId
+      const { viaAssetId, viaAssetName } = resolveAndValidateViaAsset(id, nextViaInput)
       const updated: Asset = {
         ...existing!,
         name: input.name,
@@ -226,10 +421,21 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
             : (existing!.displayName ?? null),
         description: input.description ?? null,
         tags: input.tags ?? [],
-        credentialId: input.protocol === 'ssh' ? (input.credentialId ?? null) : null,
+        credentialId: nextCredentialId,
+        viaAssetId,
+        viaAssetName,
+        allowTcpForwarding:
+          input.protocol === 'ssh'
+            ? (input.allowTcpForwarding ?? existing!.allowTcpForwarding ?? true)
+            : true,
         updatedAt: demoNow(),
       }
       state.assets[index] = updated
+      for (const child of state.assets) {
+        if (child.viaAssetId === updated.id) {
+          child.viaAssetName = updated.name
+        }
+      }
       incrementRevision()
       recordAudit('asset.update', 'asset', updated.id, updated.name, {
         protocol: updated.protocol,
@@ -244,7 +450,15 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
       const index = state.assets.findIndex((item) => item.id === id)
       const existing = state.assets[index]
       requireLocal(existing, 'asset', id)
+      if (state.assets.some((item) => item.viaAssetId === id)) {
+        throw apiError(
+          409,
+          'catalog_conflict',
+          'catalog write conflicted with an existing or referenced resource',
+        )
+      }
       state.assets.splice(index, 1)
+      delete state.probeHistory[id]
       for (const key of state.accessKeys) {
         if (key.assetIds !== null) key.assetIds = key.assetIds.filter((assetId) => assetId !== id)
       }
@@ -277,6 +491,214 @@ export function createDemoHopApi(options: DemoHopApiOptions = {}): HopApi {
         latency_ms: asset.health?.status === 'healthy' ? asset.health.latencyMs : null,
       })
       return clone(asset)
+    },
+
+    async bootstrapAssetKey(
+      id: string,
+      input: BootstrapKeyInput,
+      requestOptions?: RequestOptions,
+    ): Promise<BootstrapKeyResult> {
+      checkRequest(requestOptions)
+      const asset = state.assets.find((item) => item.id === id)
+      if (!asset) throw apiError(404, 'not_found', 'resource not found')
+      requireLocal(asset, 'asset', id)
+      if (asset.protocol !== 'ssh') {
+        throw apiError(422, 'validation_failed', 'only ssh assets support SSH key bootstrap')
+      }
+      const existingCred = asset.credentialId
+        ? state.credentials.find((item) => item.id === asset.credentialId)
+        : undefined
+      const username = input.username?.trim() || existingCred?.username || ''
+      if (!username) {
+        throw apiError(
+          422,
+          'validation_failed',
+          'username is required when asset has no bound credential',
+        )
+      }
+      if (!hasSecret(input.password) && !existingCred) {
+        throw apiError(
+          422,
+          'validation_failed',
+          'password is required when asset has no bound credential',
+        )
+      }
+      const baseCredName = input.credentialName?.trim() || `${asset.name}-ed25519`
+      const credName = state.credentials.some((c) => c.name === baseCredName)
+        ? `${baseCredName}-${nextId}`
+        : baseCredName
+      const newCred: Credential = {
+        id: `credential-demo-${nextId++}`,
+        name: credName,
+        username,
+        authType: 'key',
+        password: 'missing',
+        privateKey: 'configured',
+        passphrase: 'missing',
+        management: { mode: 'local' },
+      }
+      state.credentials.unshift(newCred)
+
+      const previousCredId = asset.credentialId
+      asset.credentialId = newCred.id
+      asset.updatedAt = demoNow()
+
+      let prunedPreviousCredential = false
+      if (
+        input.prunePreviousCredential !== false &&
+        previousCredId &&
+        previousCredId !== newCred.id
+      ) {
+        const prevIndex = state.credentials.findIndex((c) => c.id === previousCredId)
+        const prevCred = state.credentials[prevIndex]
+        const stillUsed = state.assets.some((a) => a.credentialId === previousCredId)
+        if (prevCred && prevCred.management?.mode === 'local' && !stillUsed) {
+          state.credentials.splice(prevIndex, 1)
+          prunedPreviousCredential = true
+        }
+      }
+
+      simulateProbe(asset)
+      incrementRevision()
+      const fingerprint = `SHA256:Ed25519HopBootstrap${nextId}Kx9Qv4`
+      const publicKey = `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDemoBootstrapKey${nextId}HopManaged hop-managed:${asset.name}`
+      const passwordAuthDisabled = Boolean(input.disablePasswordAuth)
+      recordAudit('asset.bootstrap_key', 'asset', asset.id, asset.name, {
+        credential_id: newCred.id,
+        fingerprint,
+        pruned_previous_credential: prunedPreviousCredential,
+        password_auth_disabled: passwordAuthDisabled,
+      })
+
+      return {
+        asset: clone(asset),
+        credential: clone(newCred),
+        publicKey,
+        publicKeyFingerprint: fingerprint,
+        verifiedKeyLogin: true,
+        prunedPreviousCredential,
+        passwordAuthDisabled,
+        warnings: [],
+      }
+    },
+
+    async getAllProbeHistory(limit = 24, requestOptions) {
+      checkRequest(requestOptions)
+      const clamped = Math.max(1, Math.min(96, Math.trunc(limit)))
+      const result: Record<string, AssetProbeSample[]> = {}
+      for (const [assetId, samples] of Object.entries(state.probeHistory)) {
+        result[assetId] = clone(samples.slice(-clamped))
+      }
+      return result
+    },
+
+    async getAssetProbeHistory(id, limit = 48, requestOptions) {
+      checkRequest(requestOptions)
+      if (!state.assets.some((item) => item.id === id)) {
+        throw apiError(404, 'not_found', 'resource not found')
+      }
+      const clamped = Math.max(1, Math.min(96, Math.trunc(limit)))
+      return clone((state.probeHistory[id] ?? []).slice(-clamped))
+    },
+
+    async getProbeSettings(requestOptions): Promise<ProbeSettings> {
+      checkRequest(requestOptions)
+      return clone(state.probeSettings)
+    },
+
+    async updateProbeSettings(
+      input: ProbeSettingsWriteInput,
+      requestOptions?: RequestOptions,
+    ): Promise<ProbeSettings> {
+      checkRequest(requestOptions)
+      if (input.intervalSeconds < 30 || input.intervalSeconds > 86_400) {
+        throw apiError(
+          422,
+          'validation_failed',
+          'probe interval_seconds must be between 30 and 86400',
+        )
+      }
+      if (input.timeoutMs < 500 || input.timeoutMs > 15_000) {
+        throw apiError(422, 'validation_failed', 'probe timeout_ms must be between 500 and 15000')
+      }
+      if (input.failureThreshold < 1 || input.failureThreshold > 10) {
+        throw apiError(
+          422,
+          'validation_failed',
+          'probe failure_threshold must be between 1 and 10',
+        )
+      }
+      state.probeSettings = {
+        enabled: input.enabled,
+        intervalSeconds: Math.trunc(input.intervalSeconds),
+        timeoutMs: Math.trunc(input.timeoutMs),
+        failureThreshold: Math.trunc(input.failureThreshold),
+        notifyOnRecovery: input.notifyOnRecovery,
+        updatedAt: demoNow(),
+      }
+      recordAudit('probe.settings_update', 'probe_settings', 'singleton', 'probe-scheduler', {
+        enabled: state.probeSettings.enabled,
+        interval_seconds: state.probeSettings.intervalSeconds,
+        failure_threshold: state.probeSettings.failureThreshold,
+      })
+      return clone(state.probeSettings)
+    },
+
+    async listNotificationChannels(requestOptions) {
+      checkRequest(requestOptions)
+      return clone(state.notificationChannels)
+    },
+
+    async createNotificationChannel(input, requestOptions) {
+      checkRequest(requestOptions)
+      assertUniqueName(state.notificationChannels, input.name.trim())
+      const channel = buildNotificationChannel(`channel-demo-${nextId++}`, input)
+      state.notificationChannels.push(channel)
+      recordAudit(
+        'notification_channel.create',
+        'notification_channel',
+        channel.id,
+        channel.name,
+        { kind: channel.kind, enabled: channel.enabled },
+      )
+      return clone(channel)
+    },
+
+    async updateNotificationChannel(id, input, requestOptions) {
+      checkRequest(requestOptions)
+      const index = state.notificationChannels.findIndex((item) => item.id === id)
+      const existing = state.notificationChannels[index]
+      if (!existing) throw apiError(404, 'not_found', 'resource not found')
+      assertUniqueName(state.notificationChannels, input.name.trim(), id)
+      const updated = buildNotificationChannel(id, input, existing)
+      state.notificationChannels[index] = updated
+      recordAudit(
+        'notification_channel.update',
+        'notification_channel',
+        updated.id,
+        updated.name,
+        { kind: updated.kind, enabled: updated.enabled },
+      )
+      return clone(updated)
+    },
+
+    async deleteNotificationChannel(id, requestOptions) {
+      checkRequest(requestOptions)
+      const index = state.notificationChannels.findIndex((item) => item.id === id)
+      const existing = state.notificationChannels[index]
+      if (!existing) throw apiError(404, 'not_found', 'resource not found')
+      state.notificationChannels.splice(index, 1)
+      recordAudit('notification_channel.delete', 'notification_channel', id, existing.name)
+    },
+
+    async testNotificationChannel(id, requestOptions) {
+      checkRequest(requestOptions)
+      const existing = state.notificationChannels.find((item) => item.id === id)
+      if (!existing) throw apiError(404, 'not_found', 'resource not found')
+      recordAudit('notification_channel.test', 'notification_channel', existing.id, existing.name, {
+        kind: existing.kind,
+      })
+      return { delivered: true }
     },
 
     async listCredentials(requestOptions) {

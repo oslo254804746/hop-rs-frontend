@@ -25,6 +25,8 @@ export interface WireAssetHealth {
   latency_ms: number | null
   error_code: string | null
   error_message: string | null
+  consecutive_failures?: number
+  alert_firing?: boolean
 }
 
 export interface WireAsset {
@@ -37,6 +39,9 @@ export interface WireAsset {
   description: string | null
   tags: string[]
   credential_id: string | null
+  via_asset_id?: string | null
+  via_asset_name?: string | null
+  allow_tcp_forwarding?: boolean
   created_at: string | null
   updated_at: string | null
   ownership: 'local' | 'config'
@@ -52,6 +57,92 @@ export interface WireAssetWriteRequest {
   description?: string | null
   tags?: string[]
   credential_id?: string | null
+  via_asset_id?: string | null
+  allow_tcp_forwarding?: boolean
+}
+
+export interface WireAssetProbeSample {
+  id: number
+  asset_id: string
+  checked_at: string
+  status: string
+  latency_ms: number | null
+  error_code: string | null
+}
+
+export interface WireBootstrapKeyRequest {
+  username?: string | null
+  password?: string | null
+  credential_name?: string | null
+  disable_password_auth?: boolean
+  prune_previous_credential?: boolean
+}
+
+export interface WireBootstrapKeyResponse {
+  asset: WireAsset
+  credential: WireCredential
+  public_key: string
+  public_key_fingerprint: string
+  verified_key_login: boolean
+  pruned_previous_credential: boolean
+  password_auth_disabled: boolean
+  warnings: string[]
+}
+
+export interface WireProbeSettings {
+  enabled: boolean
+  interval_seconds: number
+  timeout_ms: number
+  failure_threshold: number
+  notify_on_recovery: boolean
+  updated_at: string | null
+}
+
+export interface WireProbeSettingsWriteRequest {
+  enabled: boolean
+  interval_seconds: number
+  timeout_ms: number
+  failure_threshold: number
+  notify_on_recovery: boolean
+}
+
+export interface WireNotificationConfigSummary {
+  chat_id?: string | null
+  api_base_url?: string | null
+  server_url?: string | null
+  url?: string | null
+  has_secret: boolean
+}
+
+export interface WireNotificationConfigInput {
+  bot_token?: string | null
+  chat_id?: string | null
+  api_base_url?: string | null
+  server_url?: string | null
+  device_key?: string | null
+  url?: string | null
+  secret?: string | null
+}
+
+export interface WireNotificationChannel {
+  id: string
+  name: string
+  kind: 'telegram' | 'bark' | 'webhook'
+  enabled: boolean
+  config: WireNotificationConfigSummary
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface WireNotificationChannelWriteRequest {
+  name: string
+  kind: 'telegram' | 'bark' | 'webhook'
+  enabled: boolean
+  config: WireNotificationConfigInput
+}
+
+export interface WireNotificationTestResponse {
+  delivered: boolean
 }
 
 export interface WireCredential {

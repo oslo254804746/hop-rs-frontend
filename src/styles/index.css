@@ -293,6 +293,80 @@ select {
   color: var(--danger);
 }
 
+.probe-spark {
+  display: inline-flex;
+  height: 14px;
+  align-items: flex-end;
+  gap: 2px;
+  vertical-align: middle;
+}
+
+.probe-tick {
+  width: 3px;
+  height: 10px;
+  border-radius: 1.5px;
+  background: var(--line-strong);
+  opacity: 0.42;
+}
+
+.probe-tick--ok {
+  height: 12px;
+  background: var(--success);
+  opacity: 0.88;
+}
+
+.probe-tick--slow {
+  height: 12px;
+  background: var(--warning);
+  opacity: 0.92;
+}
+
+.probe-tick--fail {
+  height: 14px;
+  background: var(--danger);
+  opacity: 1;
+}
+
+.probe-spark--wide {
+  display: flex;
+  width: 100%;
+  height: 18px;
+  gap: 3px;
+}
+
+.probe-spark--wide .probe-tick {
+  flex: 1 1 0;
+  width: auto;
+  height: 14px;
+  border-radius: 2px;
+}
+
+.probe-spark--wide .probe-tick--ok,
+.probe-spark--wide .probe-tick--slow {
+  height: 16px;
+}
+
+.probe-spark--wide .probe-tick--fail {
+  height: 18px;
+}
+
+.via-pill {
+  display: inline-flex;
+  min-height: 20px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border: 1px solid color-mix(in srgb, var(--info) 30%, var(--line));
+  border-radius: 5px;
+  background: var(--info-soft);
+  color: var(--info);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 580;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .tag-chip {
   display: inline-flex;
   min-height: 22px;

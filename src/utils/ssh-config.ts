@@ -62,6 +62,7 @@ export function buildSshConfigSnippet(
   const identityFile = options.identityFile?.trim() ?? ''
   const gatewayAlias = options.gatewayAlias?.trim() || 'hop-gateway'
   const credentialsById = new Map(credentials.map((item) => [item.id, item]))
+  const assetsById = new Map(assets.map((item) => [item.id, item]))
 
   const sshAssets = [...assets]
     .filter((asset) => asset.protocol === 'ssh')
@@ -72,11 +73,11 @@ export function buildSshConfigSnippet(
 
   const lines: string[] = []
   if (options.mode === 'relay') {
-    lines.push('# Hop SSH Config — Vault Relay mode (terminal / scp / sftp)')
-    lines.push('# Hop authenticates to targets using encrypted vault credentials.')
+    lines.push('# Hop SSH Config — Vault Relay mode (terminal / scp / sftp / -L / -D / Cursor Remote-SSH)')
+    lines.push('# Hop authenticates with encrypted vault credentials and multiplexes direct-tcpip forwarding.')
   } else {
-    lines.push('# Hop SSH Config — End-to-End ProxyJump mode (Cursor / VS Code Remote-SSH)')
-    lines.push('# Tunnels raw SSH to target sshd so LocalForward and AgentForwarding work.')
+    lines.push('# Hop SSH Config — End-to-End ProxyJump mode (raw SSH to target sshd)')
+    lines.push('# Tunnels raw SSH to target sshd when using your own local target key.')
     lines.push('')
     lines.push(`Host ${quoteIfNeeded(gatewayAlias)}`)
     lines.push(`  HostName ${quoteIfNeeded(host)}`)
@@ -90,10 +91,21 @@ export function buildSshConfigSnippet(
   for (const asset of sshAssets) {
     lines.push('')
     lines.push(`Host ${quoteIfNeeded(asset.name)}`)
-    if (asset.displayName) {
+    const viaName =
+      asset.viaAssetName ??
+      (asset.viaAssetId ? assetsById.get(asset.viaAssetId)?.name : null) ??
+      null
+    if (asset.displayName && viaName) {
+      lines.push(`  # ${asset.displayName} (${asset.hostname}:${asset.port} via ${viaName})`)
+    } else if (asset.displayName) {
       lines.push(`  # ${asset.displayName} (${asset.hostname}:${asset.port})`)
+    } else if (viaName) {
+      lines.push(`  # ${asset.hostname}:${asset.port} via ${viaName}`)
     }
     if (options.mode === 'relay') {
+      if (asset.allowTcpForwarding === false) {
+        lines.push('  # direct-tcpip port forwarding disabled on this asset')
+      }
       lines.push(`  HostName ${quoteIfNeeded(host)}`)
       lines.push(`  Port ${port}`)
       lines.push(`  User ${quoteIfNeeded(asset.name)}`)

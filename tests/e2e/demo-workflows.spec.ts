@@ -8,7 +8,7 @@ test.describe('Hop demo workspace', () => {
     await page.setViewportSize({ width: 1440, height: 900 })
   })
 
-  test('starts in an explicit Demo workspace and exposes all eight routes', async ({ page }) => {
+  test('starts in an explicit Demo workspace and exposes all nine routes', async ({ page }) => {
     await openDemo(page)
     await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible()
     await expect(page.getByRole('button', { name: /Demo data.*Synthetic workspace/i })).toBeVisible()
@@ -22,6 +22,7 @@ test.describe('Hop demo workspace', () => {
       ['Access', '/access'],
       ['Sessions', '/sessions'],
       ['Host trust', '/known-hosts'],
+      ['Alerts', '/alerts'],
       ['Audit', '/audit'],
       ['Settings', '/configuration'],
     ] as const
@@ -52,6 +53,8 @@ test.describe('Hop demo workspace', () => {
     const inspector = page.getByRole('complementary', { name: 'Selected asset' })
     await expect(inspector.getByRole('heading', { name: 'router-ui' })).toBeVisible()
     await expect(inspector).toContainText('192.168.50.1:443')
+    await expect(inspector).toContainText('Alert firing')
+    await expect(inspector).toContainText('Recent 24 probes')
     await expect(inspector).toContainText('Panel / local ownership')
   })
 
@@ -171,6 +174,7 @@ test.describe('Hop demo workspace', () => {
   test('probes assets, generates Relay and ProxyJump SSH config, and records audit events', async ({ page }) => {
     await openDemo(page, '/assets')
     const assetTable = page.getByRole('table', { name: 'Catalog assets' })
+    await expect(assetTable.getByText('via prod-gateway')).toBeVisible()
     await expect(assetTable.getByText('Unprobed').first()).toBeVisible()
     await page.getByRole('button', { name: 'Probe all', exact: true }).click()
     await expect(assetTable.getByText('Unprobed')).toHaveCount(0)
@@ -179,6 +183,7 @@ test.describe('Hop demo workspace', () => {
     const dialog = page.getByRole('dialog')
     await expect(dialog.getByRole('heading', { name: 'SSH Config generator' })).toBeVisible()
     await expect(dialog).toContainText('User prod-gateway')
+    await expect(dialog).toContainText('via prod-gateway')
 
     await dialog.getByRole('button', { name: 'ProxyJump · Remote IDE' }).click()
     await expect(dialog).toContainText('Host hop-gateway')
@@ -191,6 +196,39 @@ test.describe('Hop demo workspace', () => {
       .click()
     await expect(page.getByRole('heading', { name: 'Audit', level: 1 })).toBeVisible()
     await expect(page.getByText('asset.probe_all').first()).toBeVisible()
+  })
+
+  test('bootstraps an Ed25519 SSH key on a local VPS and tests alert notifications', async ({ page }) => {
+    await openDemo(page, '/assets?asset=asset-staging-node')
+    const inspector = page.getByRole('complementary', { name: 'Selected asset' })
+    await expect(inspector.getByRole('heading', { name: 'staging-node' })).toBeVisible()
+    await expect(inspector).toContainText('via prod-gateway')
+    await inspector.getByRole('button', { name: 'Bootstrap SSH key', exact: true }).click()
+
+    const bootstrapDialog = page.getByRole('dialog')
+    await expect(bootstrapDialog.getByRole('heading', { name: 'Bootstrap SSH key' })).toBeVisible()
+    await expect(bootstrapDialog).toContainText('via prod-gateway')
+    await bootstrapDialog.getByRole('button', { name: 'One-time password' }).click()
+    await bootstrapDialog.getByLabel('Initial SSH username').fill('root')
+    await bootstrapDialog.getByLabel('Initial SSH password').fill('one-time-vps-pass')
+    await bootstrapDialog.getByRole('button', { name: 'Run SSH key bootstrap' }).click()
+
+    await expect(bootstrapDialog.getByText('SSH key bootstrap succeeded')).toBeVisible()
+    await expect(bootstrapDialog.getByText('staging-node-ed25519')).toBeVisible()
+    await bootstrapDialog.getByRole('button', { name: 'Done', exact: true }).click()
+    await expect(inspector).toContainText('staging-node-ed25519')
+
+    await page.getByRole('complementary', { name: 'Primary navigation' })
+      .getByRole('link', { name: 'Alerts', exact: true })
+      .click()
+    await expect(page.getByRole('heading', { name: 'Alerts', level: 1 })).toBeVisible()
+    await page.getByLabel('Interval (seconds)').fill('120')
+    await page.getByRole('button', { name: 'Save policy', exact: true }).click()
+    await expect(page.getByText('Probe policy saved')).toBeVisible()
+
+    await page.getByRole('button', { name: 'Send test' }).first().click()
+    await expect(page.getByText(/Test notification delivered to/i)).toBeVisible()
+    await expectNoPageOverflow(page)
   })
 })
 

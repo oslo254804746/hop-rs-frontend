@@ -281,6 +281,129 @@ describe('createFetchHopApi', () => {
       retryable: true,
     })
   })
+
+  it('maps v0.3.0 via_asset, bootstrap-key, probe-history, probe-settings, and notification-channels endpoints', async () => {
+    const stub = queuedFetch([
+      jsonResponse({
+        asset: {
+          id: 'asset-2',
+          name: 'lax-box',
+          protocol: 'ssh',
+          hostname: '10.99.0.5',
+          port: 22,
+          display_name: 'LAX Box',
+          description: null,
+          tags: ['us'],
+          credential_id: 'cred-ed25519',
+          via_asset_id: 'asset-1',
+          via_asset_name: 'hk-edge-01',
+          allow_tcp_forwarding: true,
+          created_at: '2026-11-12 08:00:00',
+          updated_at: '2026-11-12 08:02:00',
+          ownership: 'local',
+          health: {
+            asset_id: 'asset-2',
+            status: 'healthy',
+            checked_at: '2026-11-12 08:02:00',
+            last_success_at: '2026-11-12 08:02:00',
+            latency_ms: 48,
+            consecutive_failures: 0,
+            alert_firing: false,
+          },
+        },
+        credential: {
+          id: 'cred-ed25519',
+          name: 'lax-box-ed25519',
+          username: 'root',
+          auth_type: 'key',
+          password: 'missing',
+          private_key: 'configured',
+          passphrase: 'missing',
+          ownership: 'local',
+        },
+        public_key: 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAItest hop@lax-box',
+        public_key_fingerprint: 'SHA256:testfp',
+        verified_key_login: true,
+        pruned_previous_credential: true,
+        password_auth_disabled: false,
+        warnings: [],
+      }),
+      jsonResponse({
+        'asset-2': [
+          {
+            id: 1,
+            asset_id: 'asset-2',
+            checked_at: '2026-11-12 08:02:00',
+            status: 'healthy',
+            latency_ms: 48,
+            error_code: null,
+          },
+        ],
+      }),
+      jsonResponse({
+        enabled: true,
+        interval_seconds: 120,
+        timeout_ms: 4500,
+        failure_threshold: 2,
+        notify_on_recovery: true,
+        updated_at: '2026-11-12 08:03:00',
+      }),
+      jsonResponse({
+        id: 'ch-1',
+        name: 'Ops TG',
+        kind: 'telegram',
+        enabled: true,
+        config: {
+          chat_id: '-100999',
+          api_base_url: null,
+          has_secret: true,
+        },
+        created_at: '2026-11-12 08:03:00',
+        updated_at: '2026-11-12 08:03:00',
+      }),
+      jsonResponse({ delivered: true }),
+    ])
+    const api = createFetchHopApi({ baseUrl: '', token: 'token', fetch: stub.fetch })
+
+    const bootstrap = await api.bootstrapAssetKey('asset-2', {
+      username: 'root',
+      password: 'initial-password',
+      prunePreviousCredential: true,
+      disablePasswordAuth: false,
+    })
+    expect(bootstrap.verifiedKeyLogin).toBe(true)
+    expect(bootstrap.asset.viaAssetName).toBe('hk-edge-01')
+    expect(bootstrap.credential.authType).toBe('key')
+    expect(stub.calls[0]?.input).toBe('/api/v1/assets/asset-2/bootstrap-key')
+
+    const history = await api.getAllProbeHistory()
+    expect(history['asset-2']).toHaveLength(1)
+    expect(stub.calls[1]?.input).toBe('/api/v1/assets/probe-history')
+
+    const settings = await api.updateProbeSettings({
+      enabled: true,
+      intervalSeconds: 120,
+      timeoutMs: 4500,
+      failureThreshold: 2,
+      notifyOnRecovery: true,
+    })
+    expect(settings.intervalSeconds).toBe(120)
+    expect(stub.calls[2]?.input).toBe('/api/v1/probe/settings')
+    expect(stub.calls[2]?.init?.method).toBe('PUT')
+
+    const channel = await api.createNotificationChannel({
+      name: 'Ops TG',
+      kind: 'telegram',
+      enabled: true,
+      config: { chatId: '-100999', botToken: '123:ABC' },
+    })
+    expect(channel.config.hasSecret).toBe(true)
+    expect(stub.calls[3]?.input).toBe('/api/v1/notifications/channels')
+
+    const tested = await api.testNotificationChannel('ch-1')
+    expect(tested).toEqual({ delivered: true })
+    expect(stub.calls[4]?.input).toBe('/api/v1/notifications/channels/ch-1/test')
+  })
 })
 
 describe('normalizeControlApiBaseUrl', () => {

@@ -75,3 +75,30 @@ export function useAuditEventsQuery() {
     enabled: runtime.ready,
   })
 }
+
+export function useAllProbeHistoryQuery() {
+  const runtime = useHopApiRuntime()
+  return useQuery({
+    queryKey: computed(() => hopQueryKeys.probeHistory(runtime.scope.value)),
+    queryFn: ({ signal }) => runtime.requireApi().getAllProbeHistory(undefined, { signal }),
+    enabled: runtime.ready,
+  })
+}
+
+export function useProbeSettingsQuery() {
+  const runtime = useHopApiRuntime()
+  return useQuery({
+    queryKey: computed(() => hopQueryKeys.probeSettings(runtime.scope.value)),
+    queryFn: ({ signal }) => runtime.requireApi().getProbeSettings({ signal }),
+    enabled: runtime.ready,
+  })
+}
+
+export function useNotificationChannelsQuery() {
+  const runtime = useHopApiRuntime()
+  return useQuery({
+    queryKey: computed(() => hopQueryKeys.notificationChannels(runtime.scope.value)),
+    queryFn: ({ signal }) => runtime.requireApi().listNotificationChannels({ signal }),
+    enabled: runtime.ready,
+  })
+}

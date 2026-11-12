@@ -3,13 +3,20 @@ import type {
   AccessKeyCreateInput,
   Asset,
   AssetHealth,
+  AssetProbeSample,
   AssetWriteInput,
   AuditEvent,
+  BootstrapKeyInput,
+  BootstrapKeyResult,
   Credential,
   CredentialWriteInput,
   InstanceStatus,
   KnownHost,
   KnownHostIdentity,
+  NotificationChannel,
+  NotificationChannelWriteInput,
+  ProbeSettings,
+  ProbeSettingsWriteInput,
   Session,
 } from '@/domain'
 
@@ -19,12 +26,19 @@ import type {
   WireAccessKeyCreateRequest,
   WireAsset,
   WireAssetHealth,
+  WireAssetProbeSample,
   WireAssetWriteRequest,
   WireAuditEvent,
+  WireBootstrapKeyRequest,
+  WireBootstrapKeyResponse,
   WireCredential,
   WireCredentialWriteRequest,
   WireKnownHost,
   WireKnownHostResetRequest,
+  WireNotificationChannel,
+  WireNotificationChannelWriteRequest,
+  WireProbeSettings,
+  WireProbeSettingsWriteRequest,
   WireSession,
   WireStatusResponse,
 } from './wire-types'
@@ -39,10 +53,17 @@ export function mapStatus(value: WireStatusResponse): InstanceStatus {
 }
 
 export function mapAssetHealth(value?: WireAssetHealth): AssetHealth {
+  const alertMeta = {
+    ...(value?.consecutive_failures !== undefined
+      ? { consecutiveFailures: value.consecutive_failures }
+      : {}),
+    ...(value?.alert_firing !== undefined ? { alertFiring: value.alert_firing } : {}),
+  }
   if (!value || value.status === 'unknown') {
     return {
       status: 'unknown',
       checkedAt: value?.checked_at ?? null,
+      ...alertMeta,
     }
   }
   if (value.status === 'healthy') {
@@ -51,6 +72,7 @@ export function mapAssetHealth(value?: WireAssetHealth): AssetHealth {
       checkedAt: value.checked_at,
       lastSuccessAt: value.last_success_at,
       latencyMs: value.latency_ms,
+      ...alertMeta,
     }
   }
   return {
@@ -59,6 +81,7 @@ export function mapAssetHealth(value?: WireAssetHealth): AssetHealth {
     lastSuccessAt: value.last_success_at,
     errorCode: value.error_code,
     errorMessage: value.error_message,
+    ...alertMeta,
   }
 }
 
@@ -73,6 +96,11 @@ export function mapAsset(value: WireAsset): Asset {
     description: value.description,
     tags: value.tags,
     credentialId: value.credential_id,
+    ...(value.via_asset_id !== undefined ? { viaAssetId: value.via_asset_id } : {}),
+    ...(value.via_asset_name !== undefined ? { viaAssetName: value.via_asset_name } : {}),
+    ...(value.allow_tcp_forwarding !== undefined
+      ? { allowTcpForwarding: value.allow_tcp_forwarding }
+      : {}),
     createdAt: value.created_at,
     updatedAt: value.updated_at,
     management: { mode: value.ownership },
@@ -90,6 +118,110 @@ export function mapAssetInput(value: AssetWriteInput): WireAssetWriteRequest {
     ...(value.description !== undefined ? { description: value.description } : {}),
     ...(value.tags !== undefined ? { tags: value.tags } : {}),
     ...(value.credentialId !== undefined ? { credential_id: value.credentialId } : {}),
+    ...(value.viaAssetId !== undefined ? { via_asset_id: value.viaAssetId } : {}),
+    ...(value.allowTcpForwarding !== undefined
+      ? { allow_tcp_forwarding: value.allowTcpForwarding }
+      : {}),
+  }
+}
+
+export function mapAssetProbeSample(value: WireAssetProbeSample): AssetProbeSample {
+  return {
+    id: value.id,
+    assetId: value.asset_id,
+    checkedAt: value.checked_at,
+    status: value.status,
+    latencyMs: value.latency_ms,
+    errorCode: value.error_code,
+  }
+}
+
+export function mapBootstrapKeyInput(value: BootstrapKeyInput): WireBootstrapKeyRequest {
+  return {
+    ...(value.username !== undefined ? { username: value.username } : {}),
+    ...(value.password !== undefined ? { password: value.password } : {}),
+    ...(value.credentialName !== undefined ? { credential_name: value.credentialName } : {}),
+    ...(value.disablePasswordAuth !== undefined
+      ? { disable_password_auth: value.disablePasswordAuth }
+      : {}),
+    ...(value.prunePreviousCredential !== undefined
+      ? { prune_previous_credential: value.prunePreviousCredential }
+      : {}),
+  }
+}
+
+export function mapBootstrapKeyResponse(value: WireBootstrapKeyResponse): BootstrapKeyResult {
+  return {
+    asset: mapAsset(value.asset),
+    credential: mapCredential(value.credential),
+    publicKey: value.public_key,
+    publicKeyFingerprint: value.public_key_fingerprint,
+    verifiedKeyLogin: value.verified_key_login,
+    prunedPreviousCredential: value.pruned_previous_credential,
+    passwordAuthDisabled: value.password_auth_disabled,
+    warnings: value.warnings,
+  }
+}
+
+export function mapProbeSettings(value: WireProbeSettings): ProbeSettings {
+  return {
+    enabled: value.enabled,
+    intervalSeconds: value.interval_seconds,
+    timeoutMs: value.timeout_ms,
+    failureThreshold: value.failure_threshold,
+    notifyOnRecovery: value.notify_on_recovery,
+    updatedAt: value.updated_at,
+  }
+}
+
+export function mapProbeSettingsInput(
+  value: ProbeSettingsWriteInput,
+): WireProbeSettingsWriteRequest {
+  return {
+    enabled: value.enabled,
+    interval_seconds: value.intervalSeconds,
+    timeout_ms: value.timeoutMs,
+    failure_threshold: value.failureThreshold,
+    notify_on_recovery: value.notifyOnRecovery,
+  }
+}
+
+export function mapNotificationChannel(value: WireNotificationChannel): NotificationChannel {
+  return {
+    id: value.id,
+    name: value.name,
+    kind: value.kind,
+    enabled: value.enabled,
+    config: {
+      ...(value.config.chat_id !== undefined ? { chatId: value.config.chat_id } : {}),
+      ...(value.config.api_base_url !== undefined
+        ? { apiBaseUrl: value.config.api_base_url }
+        : {}),
+      ...(value.config.server_url !== undefined ? { serverUrl: value.config.server_url } : {}),
+      ...(value.config.url !== undefined ? { url: value.config.url } : {}),
+      hasSecret: value.config.has_secret,
+    },
+    createdAt: value.created_at,
+    updatedAt: value.updated_at,
+  }
+}
+
+export function mapNotificationChannelInput(
+  value: NotificationChannelWriteInput,
+): WireNotificationChannelWriteRequest {
+  return {
+    name: value.name,
+    kind: value.kind,
+    enabled: value.enabled,
+    config: {
+      ...(value.config.botToken !== undefined ? { bot_token: value.config.botToken } : {}),
+      ...(value.config.chatId !== undefined ? { chat_id: value.config.chatId } : {}),
+      ...(value.config.apiBaseUrl !== undefined ? { api_base_url: value.config.apiBaseUrl } : {}),
+      ...(value.config.serverUrl !== undefined ? { server_url: value.config.serverUrl } : {}),
+      ...(value.config.deviceKey !== undefined ? { device_key: value.config.deviceKey } : {}),
+      ...(value.config.url !== undefined ? { url: value.config.url } : {}),
+      ...(value.config.secret !== undefined ? { secret: value.config.secret } : {}),
+    },
   }
 }
 

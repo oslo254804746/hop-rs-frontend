@@ -2,6 +2,7 @@
 /* global HTMLButtonElement, HTMLDialogElement, HTMLInputElement, HTMLElement, document */
 
 import {
+  Bell,
   Cable,
   ChevronRight,
   CircleGauge,
@@ -49,6 +50,7 @@ const navItems = computed(() => [
   { name: 'access', label: t('Access'), to: '/access', icon: ShieldCheck },
   { name: 'sessions', label: t('Sessions'), to: '/sessions', icon: MonitorUp },
   { name: 'known-hosts', label: t('Host trust'), to: '/known-hosts', icon: Fingerprint },
+  { name: 'alerts', label: t('Alerts'), to: '/alerts', icon: Bell },
   { name: 'audit', label: t('Audit'), to: '/audit', icon: ListChecks },
   { name: 'configuration', label: t('Settings'), to: '/configuration', icon: Settings2 },
 ])
@@ -59,7 +61,7 @@ const mobileItems = computed(() =>
   ),
 )
 const moreActive = computed(() =>
-  ['credentials', 'known-hosts', 'audit', 'configuration'].includes(String(route.name)),
+  ['credentials', 'known-hosts', 'alerts', 'audit', 'configuration'].includes(String(route.name)),
 )
 
 const pageTitle = computed(() => t(String(route.meta.title ?? 'Hop')))
@@ -220,7 +222,7 @@ onMounted(async () => {
           {{ connection.state.mode === 'demo' ? t('Synthetic workspace') : connection.state.endpoint || t('This panel · same origin') }}
         </span>
         <span class="connection-version mono tabular">
-          {{ connection.state.version ?? (connection.state.mode === 'reauth' ? t('Token required') : 'v0.2.9') }}
+          {{ connection.state.version ?? (connection.state.mode === 'reauth' ? t('Token required') : 'v0.3.0') }}
         </span>
         <ChevronRight class="connection-arrow" :size="16" aria-hidden="true" />
       </button>
@@ -335,6 +337,9 @@ onMounted(async () => {
         </RouterLink>
         <RouterLink class="sheet-link" to="/known-hosts" @click="closeMobileMenu">
           <Fingerprint :size="18" aria-hidden="true" /> {{ t('Host trust') }}
+        </RouterLink>
+        <RouterLink class="sheet-link" to="/alerts" @click="closeMobileMenu">
+          <Bell :size="18" aria-hidden="true" /> {{ t('Alerts') }}
         </RouterLink>
         <RouterLink class="sheet-link" to="/audit" @click="closeMobileMenu">
           <ListChecks :size="18" aria-hidden="true" /> {{ t('Audit') }}

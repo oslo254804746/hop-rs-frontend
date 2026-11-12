@@ -6,9 +6,9 @@ import {
   CircleCheck,
   CircleGauge,
   Clock3,
+  Fingerprint,
   KeyRound,
   Server,
-  ShieldCheck,
   SquareTerminal,
   TriangleAlert,
 } from '@lucide/vue'
@@ -25,7 +25,9 @@ import {
   useAuditEventsQuery,
   useCredentialsQuery,
   useHopApiRuntime,
+  useNotificationChannelsQuery,
   useProbeAssetsMutation,
+  useProbeSettingsQuery,
   useSessionsQuery,
   useStatusQuery,
 } from '@/queries'
@@ -40,6 +42,8 @@ const credentialsQuery = useCredentialsQuery()
 const accessKeysQuery = useAccessKeysQuery()
 const sessionsQuery = useSessionsQuery()
 const auditEventsQuery = useAuditEventsQuery()
+const probeSettingsQuery = useProbeSettingsQuery()
+const notificationChannelsQuery = useNotificationChannelsQuery()
 const probeAllMutation = useProbeAssetsMutation()
 const { t } = useI18n()
 const isOpenWrt = getPanelRuntimeConfig().deployment === 'openwrt'
@@ -61,6 +65,7 @@ const fleetHealth = computed(() => {
   const list = assetsQuery.data.value ?? []
   const healthy = list.filter((asset) => asset.health?.status === 'healthy')
   const failed = list.filter((asset) => asset.health?.status === 'failed')
+  const firing = list.filter((asset) => asset.health?.alertFiring === true)
   const latencies = healthy
     .map((asset) => (asset.health?.status === 'healthy' ? asset.health.latencyMs : null))
     .filter((ms): ms is number => ms !== null)
@@ -72,6 +77,7 @@ const fleetHealth = computed(() => {
     total: list.length,
     healthy: healthy.length,
     failed: failed.length,
+    firing: firing.length,
     avgMs,
   }
 })
@@ -101,7 +107,11 @@ const attentionItems = computed(() => {
     if (asset.health?.status === 'failed') {
       items.push({
         key: `asset-${asset.id}`,
-        kind: connection.isDemo.value ? t('Demo health') : t('Reachability'),
+        kind: asset.health.alertFiring
+          ? t('Alert firing')
+          : connection.isDemo.value
+            ? t('Demo health')
+            : t('Reachability'),
         tone: 'danger',
         name: asset.name,
         message: asset.health.errorMessage ?? t('Target probe failed'),
@@ -137,6 +147,18 @@ const ownershipCounts = computed(() => {
   }
 })
 
+const probeSummaryLabel = computed(() => {
+  const settings = probeSettingsQuery.data.value
+  if (!settings) return '—'
+  if (!settings.enabled) return t('Paused')
+  return t('Every {seconds}s', { seconds: settings.intervalSeconds })
+})
+
+const activeChannelCount = computed(
+  () =>
+    (notificationChannelsQuery.data.value ?? []).filter((channel) => channel.enabled).length,
+)
+
 const resourceSummary = computed(() => [
   { label: t('SSH assets'), count: sshCount.value, icon: Server, to: '/assets?protocol=ssh' },
   { label: t('TCP assets'), count: tcpCount.value, icon: Boxes, to: '/assets?protocol=tcp' },
@@ -149,7 +171,7 @@ const resourceSummary = computed(() => [
   {
     label: t('Access keys'),
     count: accessKeysQuery.data.value?.length ?? 0,
-    icon: ShieldCheck,
+    icon: Fingerprint,
     to: '/access',
   },
 ])
@@ -220,7 +242,8 @@ const resourceSummary = computed(() => [
             <dt>{{ t('Reachable targets') }}</dt>
             <dd>
               <span>{{ fleetHealth.healthy }} / {{ fleetHealth.total }}</span>
-              <small v-if="fleetHealth.avgMs !== null" class="fact-sub mono">~{{ fleetHealth.avgMs }} ms</small>
+              <small v-if="fleetHealth.firing > 0" class="fact-sub fact-sub--danger">{{ t('{count} firing', { count: fleetHealth.firing }) }}</small>
+              <small v-else-if="fleetHealth.avgMs !== null" class="fact-sub mono">~{{ fleetHealth.avgMs }} ms</small>
             </dd>
           </div>
           <div>
@@ -324,11 +347,12 @@ const resourceSummary = computed(() => [
                 <h2>{{ t('Catalog snapshot') }}</h2>
                 <p>{{ t('Catalog at current revision') }} {{ statusQuery.data.value?.catalogRevision ?? '—' }}.</p>
               </div>
+              <RouterLink to="/alerts">{{ t('Alerts') }} <ArrowRight :size="14" /></RouterLink>
             </header>
             <dl class="catalog-list">
               <div><dt>{{ t('Total assets') }}</dt><dd class="tabular">{{ assetsQuery.data.value?.length ?? 0 }}</dd></div>
-              <div><dt>{{ t('Credentials') }}</dt><dd class="tabular">{{ credentialsQuery.data.value?.length ?? 0 }}</dd></div>
-              <div><dt>{{ t('Access keys') }}</dt><dd class="tabular">{{ accessKeysQuery.data.value?.length ?? 0 }}</dd></div>
+              <div><dt>{{ t('Probe scheduler') }}</dt><dd class="tabular">{{ probeSummaryLabel }}</dd></div>
+              <div><dt>{{ t('Notification channels') }}</dt><dd class="tabular">{{ activeChannelCount }}</dd></div>
               <div><dt>{{ t('Active sessions') }}</dt><dd class="tabular">{{ activeSessions.length }}</dd></div>
             </dl>
           </section>
@@ -494,6 +518,10 @@ const resourceSummary = computed(() => [
   color: var(--accent-strong);
   font-size: 11.5px;
   font-weight: 580;
+}
+
+.fact-sub--danger {
+  color: var(--danger);
 }
 
 .status-facts .accent-value {

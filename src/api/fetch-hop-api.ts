@@ -2,10 +2,15 @@ import {
   REMOTE_HOP_API_CAPABILITIES,
   type AccessKey,
   type Asset,
+  type AssetProbeSample,
   type AuditEvent,
+  type BootstrapKeyResult,
   type Credential,
   type HopApi,
   type KnownHost,
+  type NotificationChannel,
+  type NotificationTestResult,
+  type ProbeSettings,
   type RequestOptions,
   type Session,
   type TerminateSessionResult,
@@ -17,20 +22,32 @@ import {
   mapAccessKeyInput,
   mapAsset,
   mapAssetInput,
+  mapAssetProbeSample,
   mapAuditEvent,
+  mapBootstrapKeyInput,
+  mapBootstrapKeyResponse,
   mapCredential,
   mapCredentialInput,
   mapKnownHost,
   mapKnownHostResetInput,
+  mapNotificationChannel,
+  mapNotificationChannelInput,
+  mapProbeSettings,
+  mapProbeSettingsInput,
   mapSession,
   mapStatus,
 } from './mappers'
 import type {
   WireAccessKey,
   WireAsset,
+  WireAssetProbeSample,
   WireAuditEvent,
+  WireBootstrapKeyResponse,
   WireCredential,
   WireKnownHost,
+  WireNotificationChannel,
+  WireNotificationTestResponse,
+  WireProbeSettings,
   WireRevisionResponse,
   WireSession,
   WireStatusResponse,
@@ -53,6 +70,12 @@ interface HttpRequestOptions extends RequestOptions {
 
 function signalOptions(options?: RequestOptions): RequestOptions {
   return options?.signal === undefined ? {} : { signal: options.signal }
+}
+
+function probeLimitQuery(limit?: number): string {
+  if (limit === undefined) return ''
+  const clamped = Math.max(1, Math.min(96, Math.trunc(limit)))
+  return `?limit=${clamped}`
 }
 
 export function normalizeControlApiBaseUrl(value: string): string {
@@ -181,6 +204,105 @@ export function createFetchHopApi(options: FetchHopApiOptions): HopApi {
           ...signalOptions(requestOptions),
         }),
       )
+    },
+
+    async bootstrapAssetKey(id, input, requestOptions): Promise<BootstrapKeyResult> {
+      return mapBootstrapKeyResponse(
+        await request<WireBootstrapKeyResponse>(`/assets/${encodeURIComponent(id)}/bootstrap-key`, {
+          method: 'POST',
+          body: mapBootstrapKeyInput(input),
+          ...signalOptions(requestOptions),
+        }),
+      )
+    },
+
+    async getAllProbeHistory(
+      limit,
+      requestOptions,
+    ): Promise<Record<string, AssetProbeSample[]>> {
+      const response = await request<Record<string, WireAssetProbeSample[]>>(
+        `/assets/probe-history${probeLimitQuery(limit)}`,
+        signalOptions(requestOptions),
+      )
+      const mapped: Record<string, AssetProbeSample[]> = {}
+      for (const [assetId, samples] of Object.entries(response)) {
+        mapped[assetId] = samples.map(mapAssetProbeSample)
+      }
+      return mapped
+    },
+
+    async getAssetProbeHistory(id, limit, requestOptions): Promise<AssetProbeSample[]> {
+      const response = await request<WireAssetProbeSample[]>(
+        `/assets/${encodeURIComponent(id)}/probe-history${probeLimitQuery(limit)}`,
+        signalOptions(requestOptions),
+      )
+      return response.map(mapAssetProbeSample)
+    },
+
+    async getProbeSettings(requestOptions): Promise<ProbeSettings> {
+      return mapProbeSettings(
+        await request<WireProbeSettings>('/probe/settings', signalOptions(requestOptions)),
+      )
+    },
+
+    async updateProbeSettings(input, requestOptions): Promise<ProbeSettings> {
+      return mapProbeSettings(
+        await request<WireProbeSettings>('/probe/settings', {
+          method: 'PUT',
+          body: mapProbeSettingsInput(input),
+          ...signalOptions(requestOptions),
+        }),
+      )
+    },
+
+    async listNotificationChannels(requestOptions): Promise<NotificationChannel[]> {
+      const response = await request<WireNotificationChannel[]>(
+        '/notifications/channels',
+        signalOptions(requestOptions),
+      )
+      return response.map(mapNotificationChannel)
+    },
+
+    async createNotificationChannel(input, requestOptions): Promise<NotificationChannel> {
+      return mapNotificationChannel(
+        await request<WireNotificationChannel>('/notifications/channels', {
+          method: 'POST',
+          body: mapNotificationChannelInput(input),
+          ...signalOptions(requestOptions),
+        }),
+      )
+    },
+
+    async updateNotificationChannel(id, input, requestOptions): Promise<NotificationChannel> {
+      return mapNotificationChannel(
+        await request<WireNotificationChannel>(
+          `/notifications/channels/${encodeURIComponent(id)}`,
+          {
+            method: 'PUT',
+            body: mapNotificationChannelInput(input),
+            ...signalOptions(requestOptions),
+          },
+        ),
+      )
+    },
+
+    async deleteNotificationChannel(id, requestOptions): Promise<void> {
+      await request<void>(`/notifications/channels/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        ...signalOptions(requestOptions),
+      })
+    },
+
+    async testNotificationChannel(id, requestOptions): Promise<NotificationTestResult> {
+      const response = await request<WireNotificationTestResponse>(
+        `/notifications/channels/${encodeURIComponent(id)}/test`,
+        {
+          method: 'POST',
+          body: {},
+          ...signalOptions(requestOptions),
+        },
+      )
+      return { delivered: response.delivered }
     },
 
     async listCredentials(requestOptions): Promise<Credential[]> {

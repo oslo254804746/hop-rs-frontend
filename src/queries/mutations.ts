@@ -3,8 +3,11 @@ import { useMutation, useQueryClient, type QueryClient, type QueryKey } from '@t
 import type {
   AccessKeyCreateInput,
   AssetWriteInput,
+  BootstrapKeyInput,
   CredentialWriteInput,
   KnownHostIdentity,
+  NotificationChannelWriteInput,
+  ProbeSettingsWriteInput,
 } from '@/domain'
 
 import { hopQueryKeys } from './keys'
@@ -15,9 +18,19 @@ export interface UpdateAssetVariables {
   input: AssetWriteInput
 }
 
+export interface BootstrapAssetKeyVariables {
+  id: string
+  input: BootstrapKeyInput
+}
+
 export interface UpdateCredentialVariables {
   id: string
   input: CredentialWriteInput
+}
+
+export interface UpdateNotificationChannelVariables {
+  id: string
+  input: NotificationChannelWriteInput
 }
 
 export interface SetAccessKeyEnabledVariables {
@@ -79,6 +92,7 @@ export function useDeleteAssetMutation() {
       return invalidateKeys(queryClient, [
         ...catalogMutationKeys(scope, hopQueryKeys.assets(scope)),
         hopQueryKeys.accessKeys(scope),
+        hopQueryKeys.probeHistory(scope),
       ])
     },
   })
@@ -93,6 +107,7 @@ export function useProbeAssetsMutation() {
       const scope = runtime.scope.value
       return invalidateKeys(queryClient, [
         hopQueryKeys.assets(scope),
+        hopQueryKeys.probeHistory(scope),
         hopQueryKeys.auditEvents(scope),
       ])
     },
@@ -108,8 +123,101 @@ export function useProbeAssetMutation() {
       const scope = runtime.scope.value
       return invalidateKeys(queryClient, [
         hopQueryKeys.assets(scope),
+        hopQueryKeys.probeHistory(scope),
         hopQueryKeys.auditEvents(scope),
       ])
+    },
+  })
+}
+
+export function useBootstrapAssetKeyMutation() {
+  const runtime = useHopApiRuntime()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, input }: BootstrapAssetKeyVariables) =>
+      runtime.requireApi().bootstrapAssetKey(id, input),
+    onSuccess: () => {
+      const scope = runtime.scope.value
+      return invalidateKeys(queryClient, [
+        ...catalogMutationKeys(scope, hopQueryKeys.assets(scope)),
+        hopQueryKeys.credentials(scope),
+        hopQueryKeys.probeHistory(scope),
+        hopQueryKeys.knownHosts(scope),
+      ])
+    },
+  })
+}
+
+export function useUpdateProbeSettingsMutation() {
+  const runtime = useHopApiRuntime()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: ProbeSettingsWriteInput) => runtime.requireApi().updateProbeSettings(input),
+    onSuccess: () => {
+      const scope = runtime.scope.value
+      return invalidateKeys(queryClient, [
+        hopQueryKeys.probeSettings(scope),
+        hopQueryKeys.auditEvents(scope),
+      ])
+    },
+  })
+}
+
+export function useCreateNotificationChannelMutation() {
+  const runtime = useHopApiRuntime()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: NotificationChannelWriteInput) =>
+      runtime.requireApi().createNotificationChannel(input),
+    onSuccess: () => {
+      const scope = runtime.scope.value
+      return invalidateKeys(queryClient, [
+        hopQueryKeys.notificationChannels(scope),
+        hopQueryKeys.auditEvents(scope),
+      ])
+    },
+  })
+}
+
+export function useUpdateNotificationChannelMutation() {
+  const runtime = useHopApiRuntime()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, input }: UpdateNotificationChannelVariables) =>
+      runtime.requireApi().updateNotificationChannel(id, input),
+    onSuccess: () => {
+      const scope = runtime.scope.value
+      return invalidateKeys(queryClient, [
+        hopQueryKeys.notificationChannels(scope),
+        hopQueryKeys.auditEvents(scope),
+      ])
+    },
+  })
+}
+
+export function useDeleteNotificationChannelMutation() {
+  const runtime = useHopApiRuntime()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => runtime.requireApi().deleteNotificationChannel(id),
+    onSuccess: () => {
+      const scope = runtime.scope.value
+      return invalidateKeys(queryClient, [
+        hopQueryKeys.notificationChannels(scope),
+        hopQueryKeys.auditEvents(scope),
+      ])
+    },
+  })
+}
+
+export function useTestNotificationChannelMutation() {
+  const runtime = useHopApiRuntime()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => runtime.requireApi().testNotificationChannel(id),
+    onSuccess: () => {
+      const scope = runtime.scope.value
+      return invalidateKeys(queryClient, [hopQueryKeys.auditEvents(scope)])
     },
   })
 }

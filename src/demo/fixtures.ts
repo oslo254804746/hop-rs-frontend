@@ -1,16 +1,22 @@
 import type {
   AccessKey,
   Asset,
+  AssetProbeSample,
   AuditEvent,
   Credential,
   InstanceStatus,
   KnownHost,
+  NotificationChannel,
+  ProbeSettings,
   Session,
 } from '@/domain'
 
 export interface DemoFixtures {
   status: InstanceStatus
   assets: Asset[]
+  probeHistory: Record<string, AssetProbeSample[]>
+  probeSettings: ProbeSettings
+  notificationChannels: NotificationChannel[]
   credentials: Credential[]
   accessKeys: AccessKey[]
   sessions: Session[]
@@ -18,12 +24,36 @@ export interface DemoFixtures {
   auditEvents: AuditEvent[]
 }
 
+function buildDemoSamples(
+  assetId: string,
+  baseLatency: number,
+  options: { failTail?: number } = {},
+): AssetProbeSample[] {
+  const failTail = options.failTail ?? 0
+  const samples: AssetProbeSample[] = []
+  for (let i = 0; i < 24; i += 1) {
+    const minute = String((i * 3) % 60).padStart(2, '0')
+    const hour = String(8 + Math.floor((i * 3) / 60)).padStart(2, '0')
+    const checkedAt = `2026-08-14 ${hour}:${minute}:12`
+    const isFailed = i >= 24 - failTail
+    samples.push({
+      id: i + 1,
+      assetId,
+      checkedAt,
+      status: isFailed ? 'failed' : 'healthy',
+      latencyMs: isFailed ? null : baseLatency + ((i * 5) % 9) - 3,
+      errorCode: isFailed ? 'tcp_connect_failed' : null,
+    })
+  }
+  return samples
+}
+
 export function createDemoFixtures(): DemoFixtures {
   return {
     status: {
       status: 'ok',
-      version: '0.2.9-demo',
-      catalogRevision: 128,
+      version: '0.3.0-demo',
+      catalogRevision: 132,
       sshListen: '0.0.0.0:2222',
     },
     assets: [
@@ -37,6 +67,9 @@ export function createDemoFixtures(): DemoFixtures {
         description: 'Production ingress host',
         tags: ['production', 'edge', 'hk'],
         credentialId: 'credential-deploy',
+        viaAssetId: null,
+        viaAssetName: null,
+        allowTcpForwarding: true,
         createdAt: '2026-07-28 14:20:00',
         updatedAt: '2026-08-14 09:41:22',
         management: { mode: 'config', sourceId: 'home', sourceKey: 'asset/prod-gateway' },
@@ -45,6 +78,8 @@ export function createDemoFixtures(): DemoFixtures {
           checkedAt: '2026-08-14 09:47:52',
           lastSuccessAt: '2026-08-14 09:47:52',
           latencyMs: 24,
+          consecutiveFailures: 0,
+          alertFiring: false,
         },
       },
       {
@@ -57,6 +92,9 @@ export function createDemoFixtures(): DemoFixtures {
         description: 'Storage and backup host',
         tags: ['home', 'storage'],
         credentialId: 'credential-homelab',
+        viaAssetId: null,
+        viaAssetName: null,
+        allowTcpForwarding: true,
         createdAt: '2026-08-02 18:12:40',
         updatedAt: '2026-08-09 07:31:15',
         management: { mode: 'local' },
@@ -65,6 +103,8 @@ export function createDemoFixtures(): DemoFixtures {
           checkedAt: '2026-08-14 09:47:40',
           lastSuccessAt: '2026-08-14 09:47:40',
           latencyMs: 4,
+          consecutiveFailures: 0,
+          alertFiring: false,
         },
       },
       {
@@ -77,6 +117,9 @@ export function createDemoFixtures(): DemoFixtures {
         description: 'OpenWrt management endpoint',
         tags: ['home', 'network'],
         credentialId: null,
+        viaAssetId: null,
+        viaAssetName: null,
+        allowTcpForwarding: true,
         createdAt: '2026-08-04 11:06:33',
         updatedAt: '2026-08-04 11:06:33',
         management: { mode: 'local' },
@@ -86,6 +129,8 @@ export function createDemoFixtures(): DemoFixtures {
           lastSuccessAt: '2026-08-14 08:52:09',
           errorCode: 'tcp_connect_failed',
           errorMessage: 'The target refused the TCP connection.',
+          consecutiveFailures: 3,
+          alertFiring: true,
         },
       },
       {
@@ -98,10 +143,13 @@ export function createDemoFixtures(): DemoFixtures {
         description: 'Ephemeral Rust & container builder',
         tags: ['ci', 'jp'],
         credentialId: 'credential-deploy',
+        viaAssetId: null,
+        viaAssetName: null,
+        allowTcpForwarding: true,
         createdAt: '2026-08-11 08:03:12',
         updatedAt: '2026-08-14 09:41:22',
         management: { mode: 'config', sourceId: 'home', sourceKey: 'asset/build-runner' },
-        health: { status: 'unknown', checkedAt: null },
+        health: { status: 'unknown', checkedAt: null, consecutiveFailures: 0, alertFiring: false },
       },
       {
         id: 'asset-bastion-01',
@@ -113,6 +161,9 @@ export function createDemoFixtures(): DemoFixtures {
         description: 'Operations entry host',
         tags: ['production', 'access', 'sg'],
         credentialId: 'credential-deploy',
+        viaAssetId: null,
+        viaAssetName: null,
+        allowTcpForwarding: true,
         createdAt: '2026-08-01 10:18:22',
         updatedAt: '2026-08-13 16:30:04',
         management: { mode: 'config', sourceId: 'home', sourceKey: 'asset/bastion-01' },
@@ -121,6 +172,8 @@ export function createDemoFixtures(): DemoFixtures {
           checkedAt: '2026-08-14 09:47:48',
           lastSuccessAt: '2026-08-14 09:47:48',
           latencyMs: 38,
+          consecutiveFailures: 0,
+          alertFiring: false,
         },
       },
       {
@@ -133,6 +186,9 @@ export function createDemoFixtures(): DemoFixtures {
         description: 'Internal source mirror',
         tags: ['development'],
         credentialId: 'credential-deploy',
+        viaAssetId: null,
+        viaAssetName: null,
+        allowTcpForwarding: true,
         createdAt: '2026-08-03 12:08:19',
         updatedAt: '2026-08-12 15:20:31',
         management: { mode: 'local' },
@@ -141,6 +197,8 @@ export function createDemoFixtures(): DemoFixtures {
           checkedAt: '2026-08-14 09:47:34',
           lastSuccessAt: '2026-08-14 09:47:34',
           latencyMs: 11,
+          consecutiveFailures: 0,
+          alertFiring: false,
         },
       },
       {
@@ -153,6 +211,9 @@ export function createDemoFixtures(): DemoFixtures {
         description: 'Metrics ingestion endpoint',
         tags: ['observability'],
         credentialId: null,
+        viaAssetId: null,
+        viaAssetName: null,
+        allowTcpForwarding: true,
         createdAt: '2026-08-05 09:14:40',
         updatedAt: '2026-08-05 09:14:40',
         management: { mode: 'config', sourceId: 'home', sourceKey: 'asset/metrics-api' },
@@ -161,6 +222,8 @@ export function createDemoFixtures(): DemoFixtures {
           checkedAt: '2026-08-14 09:47:26',
           lastSuccessAt: '2026-08-14 09:47:26',
           latencyMs: 8,
+          consecutiveFailures: 0,
+          alertFiring: false,
         },
       },
       {
@@ -173,6 +236,9 @@ export function createDemoFixtures(): DemoFixtures {
         description: 'Shared cache endpoint',
         tags: ['production', 'data'],
         credentialId: null,
+        viaAssetId: null,
+        viaAssetName: null,
+        allowTcpForwarding: true,
         createdAt: '2026-08-06 17:43:05',
         updatedAt: '2026-08-13 21:11:55',
         management: { mode: 'local' },
@@ -181,6 +247,8 @@ export function createDemoFixtures(): DemoFixtures {
           checkedAt: '2026-08-14 09:47:22',
           lastSuccessAt: '2026-08-14 09:47:22',
           latencyMs: 7,
+          consecutiveFailures: 0,
+          alertFiring: false,
         },
       },
       {
@@ -193,10 +261,20 @@ export function createDemoFixtures(): DemoFixtures {
         description: 'Remote IDE & staging host',
         tags: ['staging', 'us'],
         credentialId: 'credential-deploy',
+        viaAssetId: 'asset-prod-gateway',
+        viaAssetName: 'prod-gateway',
+        allowTcpForwarding: true,
         createdAt: '2026-08-08 13:22:11',
         updatedAt: '2026-08-14 08:03:44',
         management: { mode: 'local' },
-        health: { status: 'unknown', checkedAt: null },
+        health: {
+          status: 'healthy',
+          checkedAt: '2026-08-14 09:47:49',
+          lastSuccessAt: '2026-08-14 09:47:49',
+          latencyMs: 142,
+          consecutiveFailures: 0,
+          alertFiring: false,
+        },
       },
       {
         id: 'asset-dns-service',
@@ -208,6 +286,9 @@ export function createDemoFixtures(): DemoFixtures {
         description: 'Local resolver endpoint',
         tags: ['home', 'network'],
         credentialId: null,
+        viaAssetId: null,
+        viaAssetName: null,
+        allowTcpForwarding: true,
         createdAt: '2026-08-10 06:45:32',
         updatedAt: '2026-08-10 06:45:32',
         management: { mode: 'config', sourceId: 'home', sourceKey: 'asset/dns-service' },
@@ -216,7 +297,66 @@ export function createDemoFixtures(): DemoFixtures {
           checkedAt: '2026-08-14 09:47:13',
           lastSuccessAt: '2026-08-14 09:47:13',
           latencyMs: 3,
+          consecutiveFailures: 0,
+          alertFiring: false,
         },
+      },
+    ],
+    probeHistory: {
+      'asset-prod-gateway': buildDemoSamples('asset-prod-gateway', 24),
+      'asset-homelab-nas': buildDemoSamples('asset-homelab-nas', 4),
+      'asset-router-ui': buildDemoSamples('asset-router-ui', 6, { failTail: 3 }),
+      'asset-bastion-01': buildDemoSamples('asset-bastion-01', 38),
+      'asset-git-server': buildDemoSamples('asset-git-server', 11),
+      'asset-metrics-api': buildDemoSamples('asset-metrics-api', 8),
+      'asset-cache-01': buildDemoSamples('asset-cache-01', 7),
+      'asset-staging-node': buildDemoSamples('asset-staging-node', 142),
+      'asset-dns-service': buildDemoSamples('asset-dns-service', 3),
+    },
+    probeSettings: {
+      enabled: true,
+      intervalSeconds: 180,
+      timeoutMs: 4000,
+      failureThreshold: 2,
+      notifyOnRecovery: true,
+      updatedAt: '2026-08-14 09:00:00',
+    },
+    notificationChannels: [
+      {
+        id: 'channel-ops-telegram',
+        name: 'Ops Telegram',
+        kind: 'telegram',
+        enabled: true,
+        config: {
+          chatId: '-10023891042',
+          hasSecret: true,
+        },
+        createdAt: '2026-08-10 10:15:00',
+        updatedAt: '2026-08-14 08:45:10',
+      },
+      {
+        id: 'channel-iphone-bark',
+        name: 'iPhone Bark',
+        kind: 'bark',
+        enabled: true,
+        config: {
+          serverUrl: 'https://api.day.app',
+          hasSecret: true,
+        },
+        createdAt: '2026-08-10 10:18:30',
+        updatedAt: '2026-08-10 10:18:30',
+      },
+      {
+        id: 'channel-ops-webhook',
+        name: 'Ops Webhook',
+        kind: 'webhook',
+        enabled: false,
+        config: {
+          url: 'https://hooks.ops.internal/hop-alerts',
+          hasSecret: true,
+        },
+        createdAt: '2026-08-11 16:02:00',
+        updatedAt: '2026-08-12 09:12:00',
       },
     ],
     credentials: [
@@ -348,7 +488,7 @@ export function createDemoFixtures(): DemoFixtures {
         targetLabel: 'all',
         result: 'success',
         sourceIp: null,
-        detailsJson: JSON.stringify({ total: 10, healthy: 7, failed: 1 }),
+        detailsJson: JSON.stringify({ total: 10, healthy: 8, failed: 1 }),
       },
       {
         id: 'audit-demo-2',
@@ -360,7 +500,12 @@ export function createDemoFixtures(): DemoFixtures {
         targetLabel: 'staging-node',
         result: 'success',
         sourceIp: null,
-        detailsJson: JSON.stringify({ protocol: 'ssh', hostname: '10.24.4.18', port: 22 }),
+        detailsJson: JSON.stringify({
+          protocol: 'ssh',
+          hostname: '10.24.4.18',
+          port: 22,
+          via_asset: 'prod-gateway',
+        }),
       },
       {
         id: 'audit-demo-3',
