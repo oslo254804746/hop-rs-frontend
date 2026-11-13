@@ -184,6 +184,7 @@ watch(
             <input
               v-model="form.name"
               v-bind="controlProps"
+              name="credential-name"
               autocomplete="off"
               placeholder="homelab-root"
               :disabled="props.busy"
@@ -200,6 +201,7 @@ watch(
             <input
               v-model="form.username"
               v-bind="controlProps"
+              name="credential-username"
               autocomplete="off"
               placeholder="root"
               :disabled="props.busy"
@@ -215,6 +217,7 @@ watch(
             <select
               v-model="form.authType"
               v-bind="controlProps"
+              name="credential-auth-type"
               :disabled="props.busy"
             >
               <option value="password">
@@ -248,6 +251,7 @@ watch(
             v-if="form.authType === 'password'"
             v-model="form.password"
             v-bind="controlProps"
+            name="credential-password"
             type="password"
             autocomplete="new-password"
             :placeholder="t('Enter a new password')"
@@ -257,6 +261,7 @@ watch(
             v-else
             v-model="form.privateKey"
             v-bind="controlProps"
+            name="credential-private-key"
             class="credential-editor__key"
             autocomplete="off"
             autocapitalize="off"
@@ -277,6 +282,7 @@ watch(
           <input
             v-model="form.passphrase"
             v-bind="controlProps"
+            name="credential-passphrase"
             type="password"
             autocomplete="new-password"
             :placeholder="t('Enter the key passphrase')"

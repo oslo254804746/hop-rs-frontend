@@ -297,6 +297,7 @@ async function deleteAccessKey() {
             <span class="sr-only">{{ t('Search access keys') }}</span>
             <input
               v-model="search"
+              name="access-search"
               type="search"
               :placeholder="t('Search key or fingerprint')"
               autocomplete="off"

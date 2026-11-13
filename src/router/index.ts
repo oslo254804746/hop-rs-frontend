@@ -1,6 +1,12 @@
-import { createRouter, createWebHashHistory, createWebHistory } from 'vue-router'
+import { watch } from 'vue'
+import {
+  createRouter,
+  createWebHashHistory,
+  createWebHistory,
+  type RouteLocationNormalizedLoaded,
+} from 'vue-router'
 
-import { translate } from '@/i18n'
+import { currentLocale, translate } from '@/i18n'
 
 const history = import.meta.env.MODE === 'openwrt'
   ? createWebHashHistory()
@@ -76,8 +82,18 @@ export const router = createRouter({
   },
 })
 
-router.afterEach((to) => {
-  const titleKey = typeof to.meta.title === 'string' ? to.meta.title : 'Hop'
+export function syncDocumentTitle(
+  route: Pick<RouteLocationNormalizedLoaded, 'meta'> = router.currentRoute.value,
+) {
+  const titleKey = typeof route.meta.title === 'string' ? route.meta.title : 'Hop'
   const translated = translate(titleKey)
   document.title = translated === 'Hop' ? 'Hop' : `${translated} · Hop`
+}
+
+router.afterEach((to) => {
+  syncDocumentTitle(to)
+})
+
+watch(currentLocale, () => {
+  syncDocumentTitle()
 })

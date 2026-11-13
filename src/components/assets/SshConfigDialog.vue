@@ -181,15 +181,15 @@ onBeforeUnmount(() => {
         <div class="options-grid">
           <label class="config-field">
             <span>{{ t('Hop SSH host') }}</span>
-            <input v-model="hopHost" spellcheck="false" autocomplete="off" placeholder="hop.example.com" />
+            <input v-model="hopHost" name="hop-ssh-host" spellcheck="false" autocomplete="off" placeholder="hop.example.com" />
           </label>
           <label class="config-field">
             <span>{{ t('Hop SSH port') }}</span>
-            <input v-model.number="hopPort" type="number" min="1" max="65535" />
+            <input v-model.number="hopPort" name="hop-ssh-port" type="number" min="1" max="65535" />
           </label>
           <label class="config-field config-field--wide">
             <span>{{ t('Local IdentityFile (optional)') }}</span>
-            <input v-model="identityFile" spellcheck="false" autocomplete="off" placeholder="~/.ssh/id_ed25519" />
+            <input v-model="identityFile" name="local-identity-file" spellcheck="false" autocomplete="off" placeholder="~/.ssh/id_ed25519" />
           </label>
         </div>
 

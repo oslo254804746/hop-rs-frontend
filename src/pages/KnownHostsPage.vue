@@ -216,6 +216,7 @@ async function resetTrust() {
             <span class="sr-only">{{ t('Search Known Hosts') }}</span>
             <input
               v-model="search"
+              name="known-hosts-search"
               type="search"
               :placeholder="t('Search host, algorithm, or fingerprint')"
               autocomplete="off"

@@ -62,6 +62,12 @@ const apiCount = computed(
 const cliCount = computed(
   () => events.value.filter((event) => event.actorLabel === 'local-cli').length,
 )
+const systemCount = computed(
+  () =>
+    events.value.filter(
+      (event) => event.actorLabel !== 'api-token' && event.actorLabel !== 'local-cli',
+    ).length,
+)
 
 const filteredEvents = computed(() => {
   const needle = search.value.trim().toLowerCase()
@@ -101,7 +107,9 @@ function formatDetails(detailsJson: string | null): Array<{ key: string; value: 
 }
 
 function actorTone(actor: string) {
-  return actor === 'api-token' ? ('info' as const) : ('neutral' as const)
+  if (actor === 'api-token') return 'info' as const
+  if (actor === 'ssh-ingress') return 'warning' as const
+  return 'neutral' as const
 }
 
 function resultTone(event: AuditEvent) {
@@ -158,6 +166,10 @@ function clearFilters() {
           <dt>{{ t('Local CLI') }}</dt>
           <dd>{{ cliCount }}</dd>
         </div>
+        <div>
+          <dt>{{ t('SSH / System') }}</dt>
+          <dd>{{ systemCount }}</dd>
+        </div>
       </dl>
     </section>
 
@@ -182,6 +194,7 @@ function clearFilters() {
           <span class="sr-only">{{ t('Search audit events') }}</span>
           <input
             v-model="search"
+            name="audit-search"
             type="search"
             :placeholder="t('Search action, target, or actor')"
             autocomplete="off"
@@ -278,6 +291,7 @@ function clearFilters() {
               v-for="detail in formatDetails(event.detailsJson)"
               :key="detail.key"
               class="tag-chip mono"
+              :title="`${detail.key}=${detail.value}`"
             >
               {{ detail.key }}={{ detail.value }}
             </span>
@@ -292,7 +306,7 @@ function clearFilters() {
 <style scoped>
 .audit-ledger {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(240px, 0.8fr);
+  grid-template-columns: minmax(0, 1.4fr) minmax(300px, 1fr);
   overflow: hidden;
 }
 
@@ -333,7 +347,7 @@ function clearFilters() {
 
 .audit-ledger dl {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   margin: 0;
 }
 
@@ -504,6 +518,15 @@ function clearFilters() {
   flex-wrap: wrap;
   gap: 5px;
   min-width: 0;
+}
+
+.audit-details .tag-chip {
+  max-width: 100%;
+  height: auto;
+  padding: 3px 7px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .muted-dash {

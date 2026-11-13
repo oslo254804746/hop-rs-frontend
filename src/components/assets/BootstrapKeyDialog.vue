@@ -282,11 +282,11 @@ onBeforeUnmount(() => {
         <div v-if="!props.boundCredential || authMode === 'password'" class="field-row">
           <label class="bootstrap-field">
             <span>{{ t('Initial SSH username') }}</span>
-            <input v-model="username" autocomplete="off" spellcheck="false" />
+            <input v-model="username" name="bootstrap-username" autocomplete="off" spellcheck="false" />
           </label>
           <label class="bootstrap-field">
             <span>{{ t('Initial SSH password') }}</span>
-            <input v-model="password" type="password" autocomplete="new-password" />
+            <input v-model="password" name="bootstrap-password" type="password" autocomplete="new-password" />
           </label>
         </div>
 
@@ -294,6 +294,7 @@ onBeforeUnmount(() => {
           <span>{{ t('New credential name (optional)') }}</span>
           <input
             v-model="credentialName"
+            name="bootstrap-credential-name"
             autocomplete="off"
             spellcheck="false"
             :placeholder="defaultCredentialPlaceholder"
@@ -302,14 +303,14 @@ onBeforeUnmount(() => {
 
         <div class="check-group">
           <label class="check-card">
-            <input v-model="prunePreviousCredential" type="checkbox" />
+            <input v-model="prunePreviousCredential" name="prune-previous-credential" type="checkbox" />
             <div>
               <strong>{{ t('Prune previous unused local credential') }}</strong>
             </div>
           </label>
 
           <label class="check-card">
-            <input v-model="disablePasswordAuth" type="checkbox" />
+            <input v-model="disablePasswordAuth" name="disable-password-auth" type="checkbox" />
             <div>
               <strong>{{ t('Disable sshd PasswordAuthentication after key verification') }}</strong>
               <small>{{ t('Requires root or passwordless sudo; validated with sshd -t before reload.') }}</small>

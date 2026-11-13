@@ -19,7 +19,6 @@ import {
 } from '@lucide/vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { z } from 'zod'
 
 import { getPanelRuntimeConfig } from '@/api'
 import BootstrapKeyDialog from '@/components/assets/BootstrapKeyDialog.vue'
@@ -52,21 +51,6 @@ import {
   inferDefaultHopHost,
   parseSshListenPort,
 } from '@/utils/ssh-config'
-
-const assetSchema = z.object({
-  name: z.string().trim().min(1, 'Enter a resource name.'),
-  protocol: z.enum(['ssh', 'tcp']),
-  hostname: z.string().trim().min(1, 'Enter a hostname or IP address.'),
-  port: z.coerce
-    .number()
-    .int()
-    .min(1, 'Port must be at least 1.')
-    .max(65_535, 'Port must be 65535 or lower.'),
-  displayName: z.string(),
-  description: z.string(),
-  tags: z.string(),
-  credentialId: z.string(),
-})
 
 type HealthFilter = 'all' | 'healthy' | 'failed' | 'unknown'
 type CredentialFormMode = 'existing' | 'inline'
@@ -439,16 +423,62 @@ function buildInlineCredentialInput(): CredentialWriteInput {
   }
 }
 
+interface ValidatedAssetForm {
+  name: string
+  protocol: AssetProtocol
+  hostname: string
+  port: number
+  displayName: string
+  description: string
+  tags: string
+  credentialId: string
+}
+
+function validateAssetForm():
+  | { ok: true; data: ValidatedAssetForm }
+  | { ok: false; errors: Record<string, string> } {
+  const errors: Record<string, string> = {}
+  const name = form.name.trim()
+  if (!name) {
+    errors.name = t('Enter a resource name.')
+  }
+  const hostname = form.hostname.trim()
+  if (!hostname) {
+    errors.hostname = t('Enter a hostname or IP address.')
+  }
+  const port = Number(form.port)
+  if (!Number.isFinite(port) || !Number.isInteger(port)) {
+    errors.port = t('Port must be an integer.')
+  } else if (port < 1) {
+    errors.port = t('Port must be at least 1.')
+  } else if (port > 65_535) {
+    errors.port = t('Port must be 65535 or lower.')
+  }
+
+  if (Object.keys(errors).length > 0) {
+    return { ok: false, errors }
+  }
+
+  return {
+    ok: true,
+    data: {
+      name,
+      protocol: form.protocol === 'tcp' ? 'tcp' : 'ssh',
+      hostname,
+      port,
+      displayName: form.displayName,
+      description: form.description,
+      tags: form.tags,
+      credentialId: form.credentialId,
+    },
+  }
+}
+
 async function submitAsset() {
   feedback.value = ''
-  const result = assetSchema.safeParse(form)
-  if (!result.success) {
-    const flattened = result.error.flatten().fieldErrors
-    fieldErrors.value = Object.fromEntries(
-      Object.entries(flattened)
-        .filter(([, messages]) => messages?.[0])
-        .map(([key, messages]) => [key, messages?.[0] ?? 'Invalid value']),
-    )
+  const result = validateAssetForm()
+  if (!result.ok) {
+    fieldErrors.value = result.errors
     return
   }
 
@@ -612,6 +642,7 @@ watch([search, protocol], () => {
               <input
                 ref="searchInput"
                 v-model="search"
+                name="asset-search"
                 type="search"
                 :placeholder="t('Press / to search assets…')"
               />
@@ -655,7 +686,7 @@ watch([search, protocol], () => {
 
             <label class="compact-select">
               <span class="sr-only">{{ t('Health') }}</span>
-              <select v-model="healthFilter">
+              <select v-model="healthFilter" name="asset-health-filter">
                 <option value="all">{{ t('All health') }}</option>
                 <option value="healthy">{{ t('Healthy') }}</option>
                 <option value="failed">{{ t('Unreachable') }}</option>
@@ -665,7 +696,7 @@ watch([search, protocol], () => {
 
             <label class="compact-select">
               <span class="sr-only">{{ t('Credential status') }}</span>
-              <select v-model="credentialState">
+              <select v-model="credentialState" name="asset-credential-filter">
                 <option value="all">{{ t('Any credential') }}</option>
                 <option value="configured">{{ t('Configured') }}</option>
                 <option value="missing">{{ t('Missing') }}</option>
@@ -674,7 +705,7 @@ watch([search, protocol], () => {
 
             <label v-if="hasOwnership" class="compact-select">
               <span class="sr-only">{{ t('Ownership') }}</span>
-              <select v-model="ownership">
+              <select v-model="ownership" name="asset-ownership-filter">
                 <option value="all">{{ t('Any owner') }}</option>
                 <option value="local">{{ t('Panel / local ownership') }}</option>
                 <option value="config">{{ t('Configuration file ownership') }}</option>
@@ -1054,12 +1085,12 @@ watch([search, protocol], () => {
         <div class="form-grid">
           <label>
             <span>{{ t('Name') }}</span>
-            <input v-model="form.name" autocomplete="off" :aria-invalid="Boolean(fieldErrors.name)" />
+            <input v-model="form.name" name="asset-name" autocomplete="off" :aria-invalid="Boolean(fieldErrors.name)" />
             <small v-if="fieldErrors.name">{{ fieldErrors.name }}</small>
           </label>
           <label>
             <span>{{ t('Protocol') }}</span>
-            <select v-model="form.protocol">
+            <select v-model="form.protocol" name="asset-protocol">
               <option value="ssh">SSH</option>
               <option value="tcp">TCP</option>
             </select>
@@ -1067,23 +1098,23 @@ watch([search, protocol], () => {
 
           <label class="wide-field">
             <span>{{ t('Display name') }}</span>
-            <input v-model="form.displayName" autocomplete="off" :placeholder="t('Optional friendly label, e.g. HKG Edge Node.')" />
+            <input v-model="form.displayName" name="asset-display-name" autocomplete="off" :placeholder="t('Optional friendly label, e.g. HKG Edge Node.')" />
           </label>
 
           <label class="host-field">
             <span>{{ t('Hostname or IP') }}</span>
-            <input v-model="form.hostname" spellcheck="false" :aria-invalid="Boolean(fieldErrors.hostname)" />
+            <input v-model="form.hostname" name="asset-hostname" spellcheck="false" :aria-invalid="Boolean(fieldErrors.hostname)" />
             <small v-if="fieldErrors.hostname">{{ fieldErrors.hostname }}</small>
           </label>
           <label>
             <span>{{ t('Port') }}</span>
-            <input v-model.number="form.port" type="number" min="1" max="65535" :aria-invalid="Boolean(fieldErrors.port)" />
+            <input v-model.number="form.port" name="asset-port" type="number" min="1" max="65535" :aria-invalid="Boolean(fieldErrors.port)" />
             <small v-if="fieldErrors.port">{{ fieldErrors.port }}</small>
           </label>
 
           <label class="wide-field">
             <span>{{ t('Jump via') }}</span>
-            <select v-model="form.viaAssetId">
+            <select v-model="form.viaAssetId" name="asset-via-id">
               <option value="">{{ t('Direct from Hop') }}</option>
               <option
                 v-for="candidate in jumpCandidates"
@@ -1119,7 +1150,7 @@ watch([search, protocol], () => {
 
             <label v-if="credentialFormMode === 'existing'" class="credential-select-label">
               <span class="sr-only">{{ t('Credential') }}</span>
-              <select v-model="form.credentialId">
+              <select v-model="form.credentialId" name="asset-credential-id">
                 <option value="">{{ t('No credential') }}</option>
                 <option
                   v-for="credential in credentialsQuery.data.value ?? []"
@@ -1135,16 +1166,16 @@ watch([search, protocol], () => {
               <div class="inline-cred-row">
                 <label>
                   <span>{{ t('Credential name') }}</span>
-                  <input v-model="inlineCredential.name" autocomplete="off" :placeholder="form.name ? `${form.name}-cred` : 'hk-root'" />
+                  <input v-model="inlineCredential.name" name="inline-credential-name" autocomplete="off" :placeholder="form.name ? `${form.name}-cred` : 'hk-root'" />
                 </label>
                 <label>
                   <span>{{ t('Target username') }}</span>
-                  <input v-model="inlineCredential.username" autocomplete="off" />
+                  <input v-model="inlineCredential.username" name="inline-credential-username" autocomplete="off" />
                 </label>
               </div>
               <label>
                 <span>{{ t('Authentication') }}</span>
-                <select v-model="inlineCredential.authType">
+                <select v-model="inlineCredential.authType" name="inline-credential-auth-type">
                   <option value="password">{{ t('Password') }}</option>
                   <option value="key">{{ t('Private key') }}</option>
                   <option value="key_passphrase">{{ t('Private key + passphrase') }}</option>
@@ -1152,16 +1183,16 @@ watch([search, protocol], () => {
               </label>
               <label v-if="inlineCredential.authType === 'password'">
                 <span>{{ t('Password') }}</span>
-                <input v-model="inlineCredential.password" type="password" autocomplete="new-password" />
+                <input v-model="inlineCredential.password" name="inline-credential-password" type="password" autocomplete="new-password" />
               </label>
               <template v-else>
                 <label>
                   <span>{{ t('Private key') }}</span>
-                  <textarea v-model="inlineCredential.privateKey" rows="3" class="mono" spellcheck="false" />
+                  <textarea v-model="inlineCredential.privateKey" name="inline-credential-private-key" rows="3" class="mono" spellcheck="false" />
                 </label>
                 <label v-if="inlineCredential.authType === 'key_passphrase'">
                   <span>{{ t('Passphrase') }}</span>
-                  <input v-model="inlineCredential.passphrase" type="password" autocomplete="new-password" />
+                  <input v-model="inlineCredential.passphrase" name="inline-credential-passphrase" type="password" autocomplete="new-password" />
                 </label>
               </template>
               <small>{{ t('Secret form boundary') }}</small>
@@ -1169,18 +1200,18 @@ watch([search, protocol], () => {
           </div>
 
           <label v-if="form.protocol === 'ssh'" class="wide-field forwarding-toggle">
-            <input v-model="form.allowTcpForwarding" type="checkbox" />
+            <input v-model="form.allowTcpForwarding" name="asset-allow-tcp-forwarding" type="checkbox" />
             <span>{{ t('Allow -L / -D / Cursor Remote-SSH forwarding') }}</span>
           </label>
 
           <label class="wide-field">
             <span>{{ t('Tags') }}</span>
-            <input v-model="form.tags" placeholder="production, edge, hk" />
+            <input v-model="form.tags" name="asset-tags" placeholder="production, edge, hk" />
             <small>{{ t('Comma-separated labels.') }}</small>
           </label>
           <label class="wide-field">
             <span>{{ t('Description') }}</span>
-            <textarea v-model="form.description" rows="2" />
+            <textarea v-model="form.description" name="asset-description" rows="2" />
           </label>
         </div>
 

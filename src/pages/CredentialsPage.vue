@@ -259,6 +259,7 @@ async function deleteCredential() {
             <span class="sr-only">{{ t('Search credentials') }}</span>
             <input
               v-model="search"
+              name="credentials-search"
               type="search"
               :placeholder="t('Search name or username')"
               autocomplete="off"

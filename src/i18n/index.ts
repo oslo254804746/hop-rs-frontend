@@ -79,7 +79,7 @@ const enUS: Record<string, string> = {
   'ProxyJump mode explanation': 'Tunnels raw SSH through proxy@Hop to target sshd when authenticating with your own local target key.',
   'Assets intro description': 'Managed SSH hosts and TCP endpoints with multi-hop via chains, one-click SSH key bootstrap, and 24-sample reachability sparklines.',
   'Overview intro description': 'Zero-agent SSH relay control plane, multi-hop reachability, alert status, and recent session ledger.',
-  'Audit intro description': 'Recorded Control API and local CLI mutations retained on this Hop instance.',
+  'Audit intro description': 'Recorded Control API, local CLI, SSH ingress, and automated probe events retained on this Hop instance.',
   'Alerts intro description': 'Periodic zero-agent reachability scheduler and encrypted Telegram, Bark, or Webhook alert delivery.',
   'Bootstrap safety explanation': 'Hop installs a fresh Ed25519 public key into ~/.ssh/authorized_keys, opens a second independent SSH session to verify key login, and only then swaps the Catalog credential.',
 }
@@ -549,7 +549,7 @@ const zhCN: Record<string, string> = {
   'Press / to search assets…': '按 / 搜索资产、IP 或标签…',
   'Assets intro description': '托管的 SSH 主机与 TCP 端点，支持多跳链式跳板 (via)、新鸡一键洗密纳管与近 24 次拨测历史轨迹。',
   'Overview intro description': '零 Agent SSH 中继控制平面、多跳连通性与告警概览及最近会话台账。',
-  'Audit intro description': '当前 Hop 实例记录的 Control API 与本地 CLI 变更审计流水。',
+  'Audit intro description': '当前 Hop 实例记录的 Control API、本地 CLI、SSH 入口鉴权及定时拨测审计流水。',
   'Reachable targets': '可达目标',
   'Reachability': '连通性',
   'Target probe failed': '目标探测失败',
@@ -665,7 +665,15 @@ const zhCN: Record<string, string> = {
   'Leave secret blank to keep the existing encrypted value.': '留空将保持已加密保存的原密钥不变。',
   'Paused': '已暂停',
   'Every {seconds}s': '每 {seconds} 秒',
+  'Enter a resource name.': '请输入资产名称。',
+  'Enter a hostname or IP address.': '请输入主机名或 IP 地址。',
+  'Port must be an integer.': '端口必须是整数。',
+  'Port must be at least 1.': '端口不能小于 1。',
+  'Port must be 65535 or lower.': '端口不能大于 65535。',
+  'SSH / System': 'SSH / 系统',
 }
+
+export const currentLocale = readonly(locale)
 
 function applyDocumentLocale() {
   document.documentElement.lang = locale.value
@@ -697,7 +705,7 @@ export function useI18n() {
   }
 
   return {
-    locale: readonly(locale),
+    locale: currentLocale,
     t: translate,
     setLocale,
     toggleLocale,

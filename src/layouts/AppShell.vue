@@ -381,7 +381,7 @@ onMounted(async () => {
 
         <label class="field">
           <span>{{ t('Webpage management Token') }}</span>
-          <input ref="connectionTokenInput" v-model="token" type="password" autocomplete="off" spellcheck="false" required autofocus />
+          <input ref="connectionTokenInput" v-model="token" name="management-token" type="password" autocomplete="off" spellcheck="false" required autofocus />
           <small>{{ t(isOpenWrt ? 'LuCI forwards it only to the loopback Hop API and remembers it for this tab session.' : "The browser sends it to this panel's Origin and remembers it for this tab session.") }}</small>
         </label>
 
@@ -393,7 +393,7 @@ onMounted(async () => {
           <summary>{{ t('Connect to another instance') }}</summary>
           <label class="field">
             <span>{{ t('Remote Control API URL') }}</span>
-            <input v-model="endpoint" type="url" inputmode="url" autocomplete="url" placeholder="https://hop.example.com" />
+            <input v-model="endpoint" name="remote-api-endpoint" type="url" inputmode="url" autocomplete="url" placeholder="https://hop.example.com" />
             <small>{{ t('Leave empty for the recommended same-origin Compose connection.') }}</small>
           </label>
         </details>

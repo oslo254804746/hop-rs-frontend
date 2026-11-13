@@ -345,7 +345,7 @@ function channelSecretLabel(channel: NotificationChannel): string {
           </InlineNotice>
 
           <label class="toggle-card">
-            <input v-model="policyForm.enabled" type="checkbox" />
+            <input v-model="policyForm.enabled" name="probe-enabled" type="checkbox" />
             <div>
               <strong>{{ t('Enable background probing') }}</strong>
               <small>{{ t('Every {seconds}s', { seconds: policyForm.intervalSeconds }) }}</small>
@@ -357,6 +357,7 @@ function channelSecretLabel(channel: NotificationChannel): string {
               <span>{{ t('Interval (seconds)') }}</span>
               <input
                 v-model.number="policyForm.intervalSeconds"
+                name="probe-interval-seconds"
                 type="number"
                 min="30"
                 max="86400"
@@ -369,6 +370,7 @@ function channelSecretLabel(channel: NotificationChannel): string {
               <span>{{ t('Timeout (ms)') }}</span>
               <input
                 v-model.number="policyForm.timeoutMs"
+                name="probe-timeout-ms"
                 type="number"
                 min="500"
                 max="15000"
@@ -381,6 +383,7 @@ function channelSecretLabel(channel: NotificationChannel): string {
               <span>{{ t('Failure threshold') }}</span>
               <input
                 v-model.number="policyForm.failureThreshold"
+                name="probe-failure-threshold"
                 type="number"
                 min="1"
                 max="10"
@@ -391,7 +394,7 @@ function channelSecretLabel(channel: NotificationChannel): string {
           </div>
 
           <label class="toggle-card">
-            <input v-model="policyForm.notifyOnRecovery" type="checkbox" />
+            <input v-model="policyForm.notifyOnRecovery" name="notify-on-recovery" type="checkbox" />
             <div>
               <strong>{{ t('Notify when asset recovers') }}</strong>
             </div>
@@ -533,11 +536,11 @@ function channelSecretLabel(channel: NotificationChannel): string {
           <div class="editor-row">
             <label>
               <span>{{ t('Channel name') }}</span>
-              <input v-model="channelForm.name" autocomplete="off" placeholder="Ops Telegram" required />
+              <input v-model="channelForm.name" name="channel-name" autocomplete="off" placeholder="Ops Telegram" required />
             </label>
             <label>
               <span>{{ t('Channel type') }}</span>
-              <select v-model="channelForm.kind">
+              <select v-model="channelForm.kind" name="channel-kind">
                 <option value="telegram">Telegram Bot</option>
                 <option value="bark">Bark (iOS)</option>
                 <option value="webhook">Webhook (HMAC)</option>
@@ -549,38 +552,38 @@ function channelSecretLabel(channel: NotificationChannel): string {
             <div class="editor-row">
               <label>
                 <span>{{ t('Chat ID') }}</span>
-                <input v-model="channelForm.chatId" class="mono" autocomplete="off" placeholder="-100238901442" />
+                <input v-model="channelForm.chatId" name="telegram-chat-id" class="mono" autocomplete="off" placeholder="-100238901442" />
               </label>
               <label>
                 <span>{{ t('Bot Token') }}</span>
-                <input v-model="channelForm.botToken" type="password" autocomplete="new-password" placeholder="123456:ABC-DEF..." />
+                <input v-model="channelForm.botToken" name="telegram-bot-token" type="password" autocomplete="new-password" placeholder="123456:ABC-DEF..." />
               </label>
             </div>
             <label>
               <span>{{ t('Telegram API base URL (optional)') }}</span>
-              <input v-model="channelForm.apiBaseUrl" class="mono" autocomplete="off" placeholder="https://api.telegram.org" />
+              <input v-model="channelForm.apiBaseUrl" name="telegram-api-base-url" class="mono" autocomplete="off" placeholder="https://api.telegram.org" />
             </label>
           </template>
 
           <template v-else-if="channelForm.kind === 'bark'">
             <label>
               <span>{{ t('Bark Device Key') }}</span>
-              <input v-model="channelForm.deviceKey" type="password" autocomplete="new-password" placeholder="aBcDeFgHiJkLmNoPqRsTuV" />
+              <input v-model="channelForm.deviceKey" name="bark-device-key" type="password" autocomplete="new-password" placeholder="aBcDeFgHiJkLmNoPqRsTuV" />
             </label>
             <label>
               <span>{{ t('Bark Server URL (optional)') }}</span>
-              <input v-model="channelForm.serverUrl" class="mono" autocomplete="off" placeholder="https://api.day.app" />
+              <input v-model="channelForm.serverUrl" name="bark-server-url" class="mono" autocomplete="off" placeholder="https://api.day.app" />
             </label>
           </template>
 
           <template v-else>
             <label>
               <span>{{ t('Webhook URL') }}</span>
-              <input v-model="channelForm.url" class="mono" autocomplete="off" placeholder="https://ops.example.com/hooks/hop" />
+              <input v-model="channelForm.url" name="webhook-url" class="mono" autocomplete="off" placeholder="https://ops.example.com/hooks/hop" />
             </label>
             <label>
               <span>{{ t('HMAC signing secret (optional)') }}</span>
-              <input v-model="channelForm.secret" type="password" autocomplete="new-password" />
+              <input v-model="channelForm.secret" name="webhook-secret" type="password" autocomplete="new-password" />
             </label>
           </template>
 
@@ -589,7 +592,7 @@ function channelSecretLabel(channel: NotificationChannel): string {
           </small>
 
           <label class="toggle-card">
-            <input v-model="channelForm.enabled" type="checkbox" />
+            <input v-model="channelForm.enabled" name="channel-enabled" type="checkbox" />
             <div>
               <strong>{{ t('Active') }}</strong>
             </div>

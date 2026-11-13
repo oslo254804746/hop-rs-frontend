@@ -174,6 +174,7 @@ watch(
             <input
               v-model="form.name"
               v-bind="controlProps"
+              name="access-key-name"
               autocomplete="off"
               placeholder="oslo-laptop"
               :disabled="props.busy"
@@ -191,6 +192,7 @@ watch(
             <textarea
               v-model="form.publicKey"
               v-bind="controlProps"
+              name="access-public-key"
               class="access-editor__public-key"
               autocomplete="off"
               autocapitalize="off"
@@ -302,6 +304,7 @@ watch(
           class="access-editor__asset"
         >
           <input
+            :name="`access-asset-${asset.id}`"
             type="checkbox"
             :checked="selectedAssetIds.includes(asset.id)"
             :disabled="props.busy || isManaged"
