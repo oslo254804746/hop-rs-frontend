@@ -18,15 +18,17 @@ Open `http://localhost:8080` and enter the webpage management Token. The default
 
 ## What is included
 
-- Overview, SSH/TCP assets, target credentials, ingress public keys, sessions, Known Hosts trust records, and mutation Audit events.
-- On-demand zero-agent TCP & SSH banner reachability probing (`POST /api/v1/assets/probe`) with RTT latency pills.
-- One-click `~/.ssh/config` generator supporting both **Vault Relay** (terminal / `scp` / `sftp`) and **ProxyJump** (Cursor / VS Code Remote-SSH) modes, plus row-level quick-connect command copy.
+- Overview, SSH/TCP assets (with `via` jump-host chaining and per-asset TCP forwarding controls), target credentials, scheduled **Alerts & Probes**, ingress public keys, sessions, Known Hosts trust records, and mutation/access Audit events.
+- On-demand and scheduled zero-agent TCP & SSH banner reachability probing (`POST /api/v1/assets/probe`, `GET/PUT /api/v1/probe/settings`, `GET /api/v1/assets/probe-history`) with RTT latency pills and trend sparklines.
+- Encrypted **Telegram Bot**, **Bark (iOS Push)**, and **HMAC-SHA256 Webhook** alert channels (`GET/POST/PUT/DELETE /api/v1/notifications/channels`) with one-click test delivery and recovery notifications.
+- Zero-agent **SSH Key Bootstrap** workflow (`POST /api/v1/assets/{id}/bootstrap-key`) to onboard fresh password-based servers onto Ed25519 vault keys and optionally disable `sshd` password authentication after verified login.
+- One-click `~/.ssh/config` generator supporting both **Vault Relay** (terminal, `scp`/`sftp`, `-L`/`-D` port forwarding, and Cursor / VS Code Remote-SSH without local target keys) and **ProxyJump** modes, plus row-level quick-connect command copy.
 - Inline target credential creation directly inside the New Asset workflow.
 - Complete target fingerprints and an explicitly confirmed trust reset for verified rebuilds or SSH Host Key rotations.
 - Local resource create/update/delete and active-session termination.
 - Minimal `local`/`config` ownership: local resources are editable; `hop.yaml` resources are labelled read-only before action buttons render.
-- A focused Settings page for connection, SSH relay endpoint, Token, same-origin proxy, CSP, and ownership boundaries.
-- English / 简体中文 switching with the language preference persisted.
+- A focused Settings page for connection, SSH relay endpoint, Token, same-origin proxy, strict CSP (`style-src 'self'` with zero inline style mutations), and ownership boundaries.
+- English / 简体中文 switching with locale-synced document titles and persisted language preference.
 - A clearly labelled synthetic Demo workspace for product evaluation.
 - Responsive desktop and mobile navigation, dark/light themes, keyboard focus (`/` asset search), and reduced motion.
 

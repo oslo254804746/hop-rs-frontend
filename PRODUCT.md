@@ -22,14 +22,15 @@ On OpenWrt, `luci-app-hop` serves the same panel after LuCI authentication, inje
 
 ## Capabilities
 
-- Overview: API connection, version, Catalog counts, ownership boundary, action items, and recent sessions.
-- Assets: filter, create, update, and delete local SSH/TCP targets.
+- Overview: API connection, version, SSH relay endpoint, Catalog counts, health summary, ownership boundary, action items, and recent sessions.
+- Assets: filter, probe, inspect RTT sparklines, bootstrap Ed25519 keys onto password-based servers, configure `via` multi-hop jump hosts and per-asset TCP forwarding, export `~/.ssh/config`, and create, update, or delete local SSH/TCP targets.
 - Credentials: create, rotate, and delete local target credentials without secret readback.
+- Alerts: configure scheduled background probe policies and encrypted Telegram, Bark, and Webhook notification channels with live test sends.
 - Access: register existing public keys, enable/disable, and manage all/restricted/deny-all asset scopes.
-- Sessions: inspect up to 100 recent records and signal an active transport.
+- Sessions & Audit: inspect up to 100 recent session records (with denial reasons), signal an active transport, and review structured audit events.
 - Host trust: inspect complete target host-key fingerprints and explicitly reset one verified TOFU record after a rebuild or intentional key rotation.
-- Settings: explain connection, same-origin proxy, tab-session Token storage, CSP, and ownership.
-- Language: instant English / Simplified Chinese switch.
+- Settings: explain connection, same-origin proxy, tab-session Token storage, strict CSP, and ownership.
+- Language: instant English / Simplified Chinese switch with locale-synced document titles.
 - Demo: explicit synthetic workspace for offline evaluation.
 
 ## Ownership contract
